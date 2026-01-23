@@ -1,0 +1,34 @@
+<resources>
+    <string name="app_name">呼吸心率监测</string>
+    <string name="title">呼吸心率监测</string>
+    <string name="mode">数据源</string>
+    <string name="mock">模拟</string>
+    <string name="ble">蓝牙</string>
+
+    <string name="hr">心率</string>
+    <string name="rr">呼吸</string>
+    <string name="bpm_unit">次/分</string>
+    <string name="rpm_unit">次/分</string>
+
+    <string name="status_mock">当前：模拟数据</string>
+    <string name="status_ble">当前：蓝牙数据</string>
+
+    <string name="chart_raw">混合通道</string>
+    <string name="chart_resp">呼吸波形</string>
+    <string name="chart_hr">心跳波形</string>
+
+    <string name="ble_dialog_title">蓝牙设备</string>
+    <string name="ble_status">状态</string>
+    <string name="ble_disconnected">未连接</string>
+    <string name="ble_scanning">扫描中</string>
+    <string name="ble_connecting">连接中</string>
+    <string name="ble_connected">已连接</string>
+    <string name="ble_scan">扫描</string>
+    <string name="ble_stop">停止</string>
+    <string name="ble_disconnect">断开</string>
+    <string name="ble_connect">连接</string>
+    <string name="ble_permissions_missing">蓝牙权限未授予</string>
+    <string name="ble_no_devices">暂无设备</string>
+    <string name="ble_no_name">未命名设备</string>
+    <string name="ble_close">关闭</string>
+</resources>
