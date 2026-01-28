@@ -12,8 +12,20 @@ class Processor(private val fsHz: Int) {
     private val respLP = MovingAverage(windowSize = fsHz * 2)
     private val hrSmooth = ShortSmoother(windowSize = maxOf(1, fsHz / 10))
 
-    private val hrEstimator = PeakRateEstimator(fsHz, refractoryMs = 250, windowSec = 10)
-    private val respEstimator = PeakRateEstimator(fsHz, refractoryMs = 1500, windowSec = 30)
+    private val hrEstimator = PeakRateEstimator(
+        fsHz = fsHz,
+        refractoryMs = 250,
+        windowSec = 10,
+        minBpm = 40f,
+        maxBpm = 180f
+    )
+    private val respEstimator = PeakRateEstimator(
+        fsHz = fsHz,
+        refractoryMs = 1500,
+        windowSec = 30,
+        minBpm = 6f,
+        maxBpm = 30f
+    )
 
     private val _rates = MutableStateFlow(Rates())
     val rates: StateFlow<Rates> = _rates

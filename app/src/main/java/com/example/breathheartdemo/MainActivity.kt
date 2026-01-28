@@ -19,8 +19,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,6 +53,9 @@ fun AppScreen() {
     val rawText by sppClient.rawText.collectAsState()
     val rawHex by sppClient.rawHex.collectAsState()
     val rawBytes by sppClient.rawBytes.collectAsState()
+    val connectionError by sppClient.connectionError.collectAsState()
+    val lastRxMs by sppClient.lastRxMs.collectAsState()
+    val timeFormatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
 
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
@@ -57,6 +65,7 @@ fun AppScreen() {
     var lastConnectionState by remember { mutableStateOf<ConnectionState>(ConnectionState.Disconnected) }
 
     var hasBlePermissions by remember { mutableStateOf(hasBlePermissions(context)) }
+    val previewScroll = rememberScrollState()
 
     val permissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -79,6 +88,11 @@ fun AppScreen() {
                 sppClient.stopScan()
             }
         } else {
+            job = scope.launch {
+                sppClient.samples.collect { s ->
+                    processor.onSample(s)
+                }
+            }
             if (!hasBlePermissions) {
                 requestBlePermissions()
             }
@@ -119,6 +133,9 @@ fun AppScreen() {
             processor.reset()
         }
         lastConnectionState = connectionState
+    }
+    LaunchedEffect(rawText, rawHex, rawBytes) {
+        previewScroll.scrollTo(previewScroll.maxValue)
     }
 
     Scaffold(
@@ -224,8 +241,23 @@ fun AppScreen() {
                     shape = MaterialTheme.shapes.large
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text(text = "蓝牙接收预览", style = MaterialTheme.typography.titleMedium)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "蓝牙接收预览", style = MaterialTheme.typography.titleMedium)
+                            OutlinedButton(onClick = { sppClient.clearPreview() }) {
+                                Text("清空")
+                            }
+                        }
                         Spacer(Modifier.height(6.dp))
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(140.dp)
+                                .verticalScroll(previewScroll)
+                        ) {
                         Text(
                             text = "HEX: " + if (rawHex.isBlank()) "暂无数据" else rawHex,
                             style = MaterialTheme.typography.bodyMedium
@@ -242,8 +274,23 @@ fun AppScreen() {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        val timeText = lastRxMs?.let { timeFormatter.format(Date(it)) } ?: "--:--:--"
+                        Text(
+                            text = "TIME: $timeText",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (!connectionError.isNullOrBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = "连接错误: $connectionError",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
                 }
+            }
             }
 
             item {

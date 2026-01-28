@@ -14,7 +14,9 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.io.IOException
 import java.util.UUID
@@ -61,6 +63,21 @@ class SppClient(private val context: Context) {
 
     private val _rawBytes = MutableStateFlow(0L)
     val rawBytes: StateFlow<Long> = _rawBytes
+
+    private val _samples = MutableSharedFlow<Sample>(extraBufferCapacity = 256)
+    val samples: SharedFlow<Sample> = _samples
+
+    private val _connectionError = MutableStateFlow<String?>(null)
+    val connectionError: StateFlow<String?> = _connectionError
+
+    private val _lastRxMs = MutableStateFlow<Long?>(null)
+    val lastRxMs: StateFlow<Long?> = _lastRxMs
+
+    fun clearPreview() {
+        _rawText.value = ""
+        _rawHex.value = ""
+        _rawBytes.value = 0L
+    }
 
     private val discoveryReceiver = object : BroadcastReceiver() {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -133,7 +150,7 @@ class SppClient(private val context: Context) {
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
-    fun connect(device: SppDevice) {
+    fun connect(device: SppDevice, retries: Int = 2, retryDelayMs: Long = 800L) {
         if (!hasConnectPermission()) return
         if (hasScanPermission()) {
             stopScan()
@@ -142,22 +159,37 @@ class SppClient(private val context: Context) {
             pendingDevice = device
             registerBondReceiver()
             _connectionState.value = ConnectionState.Connecting
+            _connectionError.value = null
             device.device.createBond()
             return
         }
         _connectionState.value = ConnectionState.Connecting
+        _connectionError.value = null
         adapter?.cancelDiscovery()
-        val tmpSocket = device.device.createRfcommSocketToServiceRecord(SPP_UUID)
         Thread {
-            try {
-                tmpSocket.connect()
-                socket = tmpSocket
-                _connectionState.value = ConnectionState.Connected(device)
-                startReader(tmpSocket)
-            } catch (e: IOException) {
-                safeClose(tmpSocket)
-                _connectionState.value = ConnectionState.Disconnected
+            val maxAttempts = maxOf(1, retries + 1)
+            for (attempt in 1..maxAttempts) {
+                val tmpSocket = device.device.createRfcommSocketToServiceRecord(SPP_UUID)
+                try {
+                    tmpSocket.connect()
+                    socket = tmpSocket
+                    _connectionState.value = ConnectionState.Connected(device)
+                    _connectionError.value = null
+                    startReader(tmpSocket)
+                    return@Thread
+                } catch (e: IOException) {
+                    safeClose(tmpSocket)
+                    val msg = e.message ?: e.javaClass.simpleName
+                    _connectionError.value = "连接失败($attempt/$maxAttempts): $msg"
+                    if (attempt < maxAttempts) {
+                        try {
+                            Thread.sleep(retryDelayMs)
+                        } catch (_: InterruptedException) {
+                        }
+                    }
+                }
             }
+            _connectionState.value = ConnectionState.Disconnected
         }.start()
     }
 
@@ -255,6 +287,7 @@ class SppClient(private val context: Context) {
             }
 
             val buf = ByteArray(1024)
+            val lineBuf = StringBuilder() // 累积字节，拼出一行文本
             while (reading) {
                 val n = try {
                     input.read(buf)
@@ -262,11 +295,15 @@ class SppClient(private val context: Context) {
                     break
                 }
                 if (n <= 0) break
+                // 仅用于预览显示，不影响解析流程。
                 val preview = buildPreview(buf, n)
                 _rawText.value = appendPreview(_rawText.value, preview, 2048)
                 val hex = buildHex(buf, n)
                 _rawHex.value = appendPreview(_rawHex.value, hex, 4096)
                 _rawBytes.value = _rawBytes.value + n
+                _lastRxMs.value = System.currentTimeMillis()
+                // 真实解析流程：按行切分并转成浮点样本。
+                parseSamples(buf, n, lineBuf)
             }
             reading = false
         }.apply { start() }
@@ -308,6 +345,40 @@ class SppClient(private val context: Context) {
             sb.append("0123456789ABCDEF"[b and 0x0F])
         }
         return sb.toString()
+    }
+
+    private fun parseSamples(buf: ByteArray, len: Int, lineBuf: StringBuilder) {
+        for (i in 0 until len) {
+            val b = buf[i].toInt() and 0xFF
+            val ch = b.toChar()
+            if (ch == '\n' || ch == '\r') {
+                if (lineBuf.isNotEmpty()) {
+                    val line = lineBuf.toString().trim()
+                    lineBuf.setLength(0)
+                    val parts = line.split(',')
+                    if (parts.size >= 2) {
+                        val tSec = parts[0].toFloatOrNull()
+                        val v = parts[1].toFloatOrNull()
+                        if (tSec != null && v != null) {
+                            val tMs = (tSec * 1000f).toLong()
+                            _samples.tryEmit(Sample(tMs, v))
+                        }
+                    } else {
+                        // 兼容旧格式：只有数值时仍然用当前时间
+                        val v = line.toFloatOrNull()
+                        if (v != null) {
+                            _samples.tryEmit(Sample(System.currentTimeMillis(), v))
+                        }
+                    }
+                }
+            } else {
+                lineBuf.append(ch)
+            }
+        }
+        if (lineBuf.length > 64) {
+            // 防止行异常过长导致内存占用持续增长。
+            lineBuf.setLength(0)
+        }
     }
 
     @SuppressLint("MissingPermission")

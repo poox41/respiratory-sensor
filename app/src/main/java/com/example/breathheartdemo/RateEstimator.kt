@@ -1,12 +1,14 @@
 package com.example.breathheartdemo
 
-import kotlin.math.abs
 import kotlin.math.max
+import kotlin.math.min
 
 class PeakRateEstimator(
     private val fsHz: Int,
     private val refractoryMs: Long,
-    private val windowSec: Int
+    private val windowSec: Int,
+    private val minBpm: Float = 40f,
+    private val maxBpm: Float = 180f
 ) {
     private val values = RingBuffer(fsHz * windowSec)
 
@@ -15,49 +17,45 @@ class PeakRateEstimator(
     }
 
     fun estimate(): Float? {
-        val (ts, vs) = values.snapshot()
-        if (vs.size < fsHz * 2) return null
+        val (_, vs) = values.snapshot()
+        val n = vs.size
+        if (n < fsHz * 2) return null
 
         var mean = 0f
         for (x in vs) mean += x
-        mean /= vs.size
+        mean /= n
 
-        var meanAbs = 0f
-        for (x in vs) meanAbs += abs(x - mean)
-        meanAbs /= vs.size
+        val minHz = max(0.1f, minBpm / 60f)
+        val maxHz = max(minHz, maxBpm / 60f)
 
-        val thr = mean + 0.8f * max(0.001f, meanAbs)
+        val kMin = max(1, (minHz * n / fsHz).toInt())
+        val kMax = min(n / 2, (maxHz * n / fsHz).toInt())
+        if (kMax <= kMin) return null
 
-        val peaks = ArrayList<Long>()
-        var lastAccepted = 0L
+        var bestK = -1
+        var bestMag = 0.0
+        val twoPi = 2.0 * Math.PI
 
-        for (i in 1 until vs.size - 1) {
-            val a = vs[i - 1]
-            val b = vs[i]
-            val c = vs[i + 1]
-            if (b > a && b > c && b > thr) {
-                val t = ts[i]
-                if (peaks.isEmpty() || (t - lastAccepted) >= refractoryMs) {
-                    peaks.add(t)
-                    lastAccepted = t
-                }
+        for (k in kMin..kMax) {
+            val w = twoPi * k / n
+            var re = 0.0
+            var im = 0.0
+            for (i in 0 until n) {
+                val x = (vs[i] - mean).toDouble()
+                val ang = w * i
+                re += x * kotlin.math.cos(ang)
+                im -= x * kotlin.math.sin(ang)
+            }
+            val mag = re * re + im * im
+            if (mag > bestMag) {
+                bestMag = mag
+                bestK = k
             }
         }
 
-        if (peaks.size < 2) return null
-
-        var sumDt = 0f
-        var cnt = 0
-        for (i in 1 until peaks.size) {
-            val dt = (peaks[i] - peaks[i - 1]).toFloat() / 1000f
-            if (dt > 0.1f) {
-                sumDt += dt
-                cnt++
-            }
-        }
-        if (cnt == 0) return null
-        val avgPeriod = sumDt / cnt
-        return 60f / avgPeriod
+        if (bestK < 0) return null
+        val freq = bestK.toFloat() * fsHz / n.toFloat()
+        return freq * 60f
     }
 
     fun clear() {
