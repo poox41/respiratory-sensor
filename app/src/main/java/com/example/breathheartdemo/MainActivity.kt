@@ -47,14 +47,14 @@ fun AppScreen() {
     var useMock by remember { mutableStateOf(true) }
     var showBleDialog by remember { mutableStateOf(false) }
 
-    val sppClient = remember { SppClient(context.applicationContext) }
-    val devices by sppClient.scanResults.collectAsState()
-    val connectionState by sppClient.connectionState.collectAsState()
-    val rawText by sppClient.rawText.collectAsState()
-    val rawHex by sppClient.rawHex.collectAsState()
-    val rawBytes by sppClient.rawBytes.collectAsState()
-    val connectionError by sppClient.connectionError.collectAsState()
-    val lastRxMs by sppClient.lastRxMs.collectAsState()
+    val bleClient = remember { BleClient(context.applicationContext, fsHz) }
+    val devices by bleClient.scanResults.collectAsState()
+    val connectionState by bleClient.connectionState.collectAsState()
+    val rawText by bleClient.rawText.collectAsState()
+    val rawHex by bleClient.rawHex.collectAsState()
+    val rawBytes by bleClient.rawBytes.collectAsState()
+    val connectionError by bleClient.connectionError.collectAsState()
+    val lastRxMs by bleClient.lastRxMs.collectAsState()
     val timeFormatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
 
     val scope = rememberCoroutineScope()
@@ -85,11 +85,11 @@ fun AppScreen() {
                 }
             }
             if (hasBleScanPermission(context)) {
-                sppClient.stopScan()
+                bleClient.stopScan()
             }
         } else {
             job = scope.launch {
-                sppClient.samples.collect { s ->
+                bleClient.samples.collect { s ->
                     processor.onSample(s)
                 }
             }
@@ -107,7 +107,7 @@ fun AppScreen() {
 
     LaunchedEffect(useMock, hasBlePermissions) {
         if (!useMock && hasBleScanPermission(context)) {
-            sppClient.startScan()
+            bleClient.startScan()
         }
     }
 
@@ -247,7 +247,7 @@ fun AppScreen() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(text = "蓝牙接收预览", style = MaterialTheme.typography.titleMedium)
-                            OutlinedButton(onClick = { sppClient.clearPreview() }) {
+                            OutlinedButton(onClick = { bleClient.clearPreview() }) {
                                 Text("清空")
                             }
                         }
@@ -341,20 +341,20 @@ fun AppScreen() {
             connectionState = connectionState,
             onScan = {
                 if (hasBleScanPermission(context)) {
-                    sppClient.startScan()
+                    bleClient.startScan()
                 } else {
                     requestBlePermissions()
                 }
             },
             onStop = {
                 if (hasBleScanPermission(context)) {
-                    sppClient.stopScan()
+                    bleClient.stopScan()
                 }
             },
             onConnect = {
                 if (hasBleConnectPermission(context)) {
                     pendingConnect = true
-                    sppClient.connect(it)
+                    bleClient.connect(it)
                 } else {
                     requestBlePermissions()
                 }
@@ -362,7 +362,7 @@ fun AppScreen() {
             onDisconnect = {
                 if (hasBleConnectPermission(context)) {
                     pendingConnect = false
-                    sppClient.disconnect()
+                    bleClient.disconnect()
                 }
             },
             onRequestPermissions = { requestBlePermissions() },
@@ -431,11 +431,11 @@ private fun ChartCard(
 
 @Composable
 private fun BleDialog(
-    devices: List<SppDevice>,
+    devices: List<BleDevice>,
     connectionState: ConnectionState,
     onScan: () -> Unit,
     onStop: () -> Unit,
-    onConnect: (SppDevice) -> Unit,
+    onConnect: (BleDevice) -> Unit,
     onDisconnect: () -> Unit,
     onRequestPermissions: () -> Unit,
     onDismiss: () -> Unit,
