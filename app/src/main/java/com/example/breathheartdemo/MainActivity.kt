@@ -23,9 +23,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -39,7 +36,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
 fun AppScreen() {
-    val fsHz = 100
+    val fsHz = 50
     val context = LocalContext.current
     val processor = remember { Processor(fsHz) }
     val rates by processor.rates.collectAsState()
@@ -50,12 +47,9 @@ fun AppScreen() {
     val bleClient = remember { BleClient(context.applicationContext, fsHz) }
     val devices by bleClient.scanResults.collectAsState()
     val connectionState by bleClient.connectionState.collectAsState()
-    val rawText by bleClient.rawText.collectAsState()
     val rawHex by bleClient.rawHex.collectAsState()
     val rawBytes by bleClient.rawBytes.collectAsState()
     val connectionError by bleClient.connectionError.collectAsState()
-    val lastRxMs by bleClient.lastRxMs.collectAsState()
-    val timeFormatter = remember { SimpleDateFormat("HH:mm:ss", Locale.getDefault()) }
 
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
@@ -134,7 +128,7 @@ fun AppScreen() {
         }
         lastConnectionState = connectionState
     }
-    LaunchedEffect(rawText, rawHex, rawBytes) {
+    LaunchedEffect(rawHex) {
         previewScroll.scrollTo(previewScroll.maxValue)
     }
 
@@ -262,24 +256,13 @@ fun AppScreen() {
                             text = "HEX: " + if (rawHex.isBlank()) "暂无数据" else rawHex,
                             style = MaterialTheme.typography.bodyMedium
                         )
-                        Spacer(Modifier.height(4.dp))
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "ASCII: " + if (rawText.isBlank()) "暂无数据" else rawText,
+                            text = "RX total: $rawBytes",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "RX bytes: $rawBytes",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        val timeText = lastRxMs?.let { timeFormatter.format(Date(it)) } ?: "--:--:--"
-                        Text(
-                            text = "TIME: $timeText",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
                         if (!connectionError.isNullOrBlank()) {
                             Spacer(Modifier.height(6.dp))
                             Text(
@@ -298,8 +281,8 @@ fun AppScreen() {
                     Waveform(
                         buffer = processor.rawBuf,
                         color = MaterialTheme.colorScheme.primary,
-                        yMin = -2f,
-                        yMax = 2f,
+                        yMin = -32768f,
+                        yMax = 32767f,
                         showGrid = true,
                         showZeroLine = true
                     )
