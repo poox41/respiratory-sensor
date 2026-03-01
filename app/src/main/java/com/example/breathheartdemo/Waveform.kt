@@ -28,11 +28,15 @@ fun Waveform(
     color: Color = Color.Black,
     yMin: Float = -2f,
     yMax: Float = 2f,
+    windowMs: Long = 6000L,
+    gain: Float = 1f,
+    offset: Float = 0f,
     showGrid: Boolean = true,
     showZeroLine: Boolean = true,
     zeroLineValue: Float? = null
 ) {
     var tick by remember { mutableLongStateOf(0L) }
+    val effectiveGain = gain
     LaunchedEffect(Unit) {
         while (true) {
             delay(33L) // ~30 FPS redraw
@@ -41,7 +45,6 @@ fun Waveform(
     }
     key(tick) {
         Canvas(modifier = modifier.fillMaxWidth().height(140.dp)) {
-            val windowMs = 6000L
             val vMin = yMin
             val vMax = yMax
             val range = max(1e-6f, vMax - vMin)
@@ -104,7 +107,8 @@ fun Waveform(
                 val x = xNorm.coerceIn(0f, 1f) * w
                 if (x - lastX < minStepPx) continue
                 lastX = x
-                val clamped = min(vMax, max(vMin, vs[i]))
+                val scaled = (vs[i] - offset) * effectiveGain + offset
+                val clamped = min(vMax, max(vMin, scaled))
                 val yNorm = (clamped - vMin) / range
                 val y = h - yNorm * h
                 if (!started) {

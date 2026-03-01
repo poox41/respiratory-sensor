@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 //鎷嗗垎鍑簉esp/hr,骞剁畻bpm/rpm
 class Processor(private val fsHz: Int) {
-    private val cap = fsHz * 10
+    private val cap = fsHz * 30
     val rawBuf = RingBuffer(cap)
     val respBuf = RingBuffer(cap)
     val hrBuf = RingBuffer(cap)

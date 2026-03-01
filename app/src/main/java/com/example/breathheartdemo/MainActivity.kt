@@ -43,6 +43,8 @@ fun AppScreen() {
 
     var useMock by remember { mutableStateOf(true) }
     var showBleDialog by remember { mutableStateOf(false) }
+    var rawGain by remember { mutableStateOf(1f) }
+    var rawWindowMs by remember { mutableStateOf(6000L) }
 
     val bleClient = remember { BleClient(context.applicationContext, fsHz) }
     val devices by bleClient.scanResults.collectAsState()
@@ -278,14 +280,66 @@ fun AppScreen() {
 
             item {
                 ChartCard(title = stringResource(R.string.chart_raw)) {
-                    Waveform(
-                        buffer = processor.rawBuf,
-                        color = MaterialTheme.colorScheme.primary,
-                        yMin = -32768f,
-                        yMax = 32767f,
-                        showGrid = true,
-                        showZeroLine = true
-                    )
+                    Column {
+                        Waveform(
+                            buffer = processor.rawBuf,
+                            color = MaterialTheme.colorScheme.primary,
+                            yMin = -32768f,
+                            yMax = 32767f,
+                            windowMs = rawWindowMs,
+                            gain = rawGain,
+                            showGrid = true,
+                            showZeroLine = true
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "幅度 x" + String.format("%.1f", rawGain),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { rawGain = (rawGain / 1.2f).coerceIn(0.1f, 200f) }
+                                ) { Text("-") }
+                                OutlinedButton(
+                                    onClick = { rawGain = 1f }
+                                ) { Text("重置") }
+                                Button(
+                                    onClick = { rawGain = (rawGain * 1.2f).coerceIn(0.1f, 200f) }
+                                ) { Text("+") }
+                            }
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "时间窗 " + String.format("%.1f", rawWindowMs / 1000f) + "s",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = {
+                                        rawWindowMs = (rawWindowMs / 1.5).toLong().coerceIn(1000L, 30000L)
+                                    }
+                                ) { Text("-") }
+                                OutlinedButton(
+                                    onClick = { rawWindowMs = 6000L }
+                                ) { Text("重置") }
+                                Button(
+                                    onClick = {
+                                        rawWindowMs = (rawWindowMs * 1.5).toLong().coerceIn(1000L, 30000L)
+                                    }
+                                ) { Text("+") }
+                            }
+                        }
+                    }
                 }
             }
 
