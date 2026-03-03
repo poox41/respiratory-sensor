@@ -22,7 +22,10 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.max
+import kotlin.math.min
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -43,8 +46,23 @@ fun AppScreen() {
 
     var useMock by remember { mutableStateOf(true) }
     var showBleDialog by remember { mutableStateOf(false) }
+    var autoRawGain by remember { mutableStateOf(true) }
+    var autoRawWindow by remember { mutableStateOf(true) }
     var rawGain by remember { mutableStateOf(1f) }
     var rawWindowMs by remember { mutableStateOf(6000L) }
+    val effectiveRawWindowMs = rememberAutoWindowMs(
+        rates = rates,
+        autoEnabled = autoRawWindow,
+        manualWindowMs = rawWindowMs
+    )
+    val effectiveRawGain = rememberAutoGain(
+        buffer = processor.rawBuf,
+        windowMs = effectiveRawWindowMs,
+        yMin = -32768f,
+        yMax = 32767f,
+        autoEnabled = autoRawGain,
+        manualGain = rawGain
+    )
 
     val bleClient = remember { BleClient(context.applicationContext, fsHz) }
     val devices by bleClient.scanResults.collectAsState()
@@ -286,8 +304,8 @@ fun AppScreen() {
                             color = MaterialTheme.colorScheme.primary,
                             yMin = -32768f,
                             yMax = 32767f,
-                            windowMs = rawWindowMs,
-                            gain = rawGain,
+                            windowMs = effectiveRawWindowMs,
+                            gain = effectiveRawGain,
                             showGrid = true,
                             showZeroLine = true
                         )
@@ -298,18 +316,55 @@ fun AppScreen() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "幅度 x" + String.format("%.1f", rawGain),
+                                text = "自动幅度",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Switch(
+                                checked = autoRawGain,
+                                onCheckedChange = { autoRawGain = it }
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "自动时间窗",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Switch(
+                                checked = autoRawWindow,
+                                onCheckedChange = { autoRawWindow = it }
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (autoRawGain) {
+                                    "幅度 自动(x" + String.format("%.1f", effectiveRawGain) + ")"
+                                } else {
+                                    "幅度 x" + String.format("%.1f", rawGain)
+                                },
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
-                                    onClick = { rawGain = (rawGain / 1.2f).coerceIn(0.1f, 200f) }
+                                    onClick = { rawGain = (rawGain / 1.2f).coerceIn(0.1f, 200f) },
+                                    enabled = !autoRawGain
                                 ) { Text("-") }
                                 OutlinedButton(
-                                    onClick = { rawGain = 1f }
+                                    onClick = { rawGain = 1f },
+                                    enabled = !autoRawGain
                                 ) { Text("重置") }
                                 Button(
-                                    onClick = { rawGain = (rawGain * 1.2f).coerceIn(0.1f, 200f) }
+                                    onClick = { rawGain = (rawGain * 1.2f).coerceIn(0.1f, 200f) },
+                                    enabled = !autoRawGain
                                 ) { Text("+") }
                             }
                         }
@@ -320,22 +375,29 @@ fun AppScreen() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "时间窗 " + String.format("%.1f", rawWindowMs / 1000f) + "s",
+                                text = if (autoRawWindow) {
+                                    "时间窗 自动(" + String.format("%.1f", effectiveRawWindowMs / 1000f) + "s)"
+                                } else {
+                                    "时间窗 " + String.format("%.1f", rawWindowMs / 1000f) + "s"
+                                },
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
                                     onClick = {
                                         rawWindowMs = (rawWindowMs / 1.5).toLong().coerceIn(1000L, 30000L)
-                                    }
+                                    },
+                                    enabled = !autoRawWindow
                                 ) { Text("-") }
                                 OutlinedButton(
-                                    onClick = { rawWindowMs = 6000L }
+                                    onClick = { rawWindowMs = 6000L },
+                                    enabled = !autoRawWindow
                                 ) { Text("重置") }
                                 Button(
                                     onClick = {
                                         rawWindowMs = (rawWindowMs * 1.5).toLong().coerceIn(1000L, 30000L)
-                                    }
+                                    },
+                                    enabled = !autoRawWindow
                                 ) { Text("+") }
                             }
                         }
@@ -420,6 +482,80 @@ fun AppScreen() {
             }
         )
     }
+}
+
+@Composable
+private fun rememberAutoWindowMs(
+    rates: Rates,
+    autoEnabled: Boolean,
+    manualWindowMs: Long
+): Long {
+    var autoWindowMs by remember { mutableLongStateOf(manualWindowMs) }
+
+    LaunchedEffect(autoEnabled, manualWindowMs, rates.bpm, rates.rpm) {
+        if (!autoEnabled) {
+            autoWindowMs = manualWindowMs
+            return@LaunchedEffect
+        }
+
+        val bpm = rates.bpm
+        val rpm = rates.rpm
+        val targetMs = when {
+            bpm != null && bpm > 1f -> ((8f * 60_000f) / bpm).toLong()
+            rpm != null && rpm > 0.2f -> ((2.5f * 60_000f) / rpm).toLong()
+            else -> 6000L
+        }.coerceIn(2000L, 15000L)
+
+        autoWindowMs = (autoWindowMs * 0.7f + targetMs * 0.3f).toLong()
+    }
+
+    return if (autoEnabled) autoWindowMs else manualWindowMs
+}
+
+@Composable
+private fun rememberAutoGain(
+    buffer: RingBuffer,
+    windowMs: Long,
+    yMin: Float,
+    yMax: Float,
+    autoEnabled: Boolean,
+    manualGain: Float
+): Float {
+    var autoGain by remember { mutableFloatStateOf(manualGain) }
+
+    LaunchedEffect(buffer, windowMs, yMin, yMax, autoEnabled, manualGain) {
+        if (!autoEnabled) {
+            autoGain = manualGain
+            return@LaunchedEffect
+        }
+
+        while (true) {
+            val (ts, vs) = buffer.snapshot()
+            if (vs.isNotEmpty()) {
+                val tMax = ts[vs.lastIndex]
+                val tMin = tMax - windowMs
+                var minV = Float.POSITIVE_INFINITY
+                var maxV = Float.NEGATIVE_INFINITY
+
+                for (i in vs.indices) {
+                    if (ts[i] < tMin) continue
+                    minV = min(minV, vs[i])
+                    maxV = max(maxV, vs[i])
+                }
+
+                if (minV != Float.POSITIVE_INFINITY && maxV != Float.NEGATIVE_INFINITY) {
+                    val p2p = max(1f, maxV - minV)
+                    val range = max(1f, yMax - yMin)
+                    val targetP2P = range * 0.72f
+                    val targetGain = (targetP2P / p2p).coerceIn(0.1f, 200f)
+                    autoGain = autoGain * 0.75f + targetGain * 0.25f
+                }
+            }
+            delay(120L)
+        }
+    }
+
+    return if (autoEnabled) autoGain else manualGain
 }
 
 @Composable
