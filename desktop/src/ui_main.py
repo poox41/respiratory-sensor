@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
-from PySide2.QtCore import Qt, QTimer
+from PySide2.QtCore import QTimer
 from PySide2.QtWidgets import (
     QWidget,
     QMainWindow,
@@ -24,7 +24,7 @@ from processor import Processor
 class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
-        self.setWindowTitle("BreathHeart 桌面端")
+        self.setWindowTitle("BreathHeart Desktop")
         self.resize(1200, 800)
 
         self.processor = Processor(fs_hz=DEFAULT_SAMPLE_RATE_HZ)
@@ -33,32 +33,28 @@ class MainWindow(QMainWindow):
         self.raw_gain = float(DEFAULT_GAIN)
         self.raw_window_ms = int(DEFAULT_WINDOW_MS)
 
-        # Top controls
-        self.scan_btn = QPushButton("扫描")
-        self.stop_btn = QPushButton("停止")
-        self.connect_btn = QPushButton("连接")
-        self.disconnect_btn = QPushButton("断开")
+        self.scan_btn = QPushButton("Scan")
+        self.stop_btn = QPushButton("Stop")
+        self.connect_btn = QPushButton("Connect")
+        self.disconnect_btn = QPushButton("Disconnect")
         self.device_list = QListWidget()
-        self.status_label = QLabel("未连接")
+        self.status_label = QLabel("Disconnected")
 
-        # Metrics
-        self.hr_label = QLabel("心率: -- 次/分")
-        self.rr_label = QLabel("呼吸率: -- 次/分")
+        self.hr_label = QLabel("Heart Rate: -- bpm")
+        self.rr_label = QLabel("Respiration Rate: -- rpm")
 
-        # Raw controls
         self.gain_down = QPushButton("-")
-        self.gain_reset = QPushButton("重置")
+        self.gain_reset = QPushButton("Reset")
         self.gain_up = QPushButton("+")
         self.window_down = QPushButton("-")
-        self.window_reset = QPushButton("重置")
+        self.window_reset = QPushButton("Reset")
         self.window_up = QPushButton("+")
         self.gain_value = QLabel(f"x{self.raw_gain:.1f}")
         self.window_value = QLabel(f"{self.raw_window_ms/1000:.1f}s")
 
-        # Plots
-        self.raw_plot = pg.PlotWidget(title="原始")
-        self.resp_plot = pg.PlotWidget(title="呼吸")
-        self.hr_plot = pg.PlotWidget(title="心率")
+        self.raw_plot = pg.PlotWidget(title="Raw")
+        self.resp_plot = pg.PlotWidget(title="Respiration")
+        self.hr_plot = pg.PlotWidget(title="Heart Rate")
         for p in (self.raw_plot, self.resp_plot, self.hr_plot):
             p.showGrid(x=True, y=True, alpha=0.3)
 
@@ -78,7 +74,7 @@ class MainWindow(QMainWindow):
         self.setCentralWidget(central)
 
         left = QVBoxLayout()
-        left.addWidget(QLabel("设备"))
+        left.addWidget(QLabel("Devices"))
         left.addWidget(self.device_list, 1)
         btn_row = QHBoxLayout()
         btn_row.addWidget(self.scan_btn)
@@ -95,18 +91,18 @@ class MainWindow(QMainWindow):
         metrics.addWidget(self.rr_label)
 
         raw_ctrl = QGridLayout()
-        raw_ctrl.addWidget(QLabel("幅度"), 0, 0)
+        raw_ctrl.addWidget(QLabel("Gain"), 0, 0)
         raw_ctrl.addWidget(self.gain_down, 0, 1)
         raw_ctrl.addWidget(self.gain_reset, 0, 2)
         raw_ctrl.addWidget(self.gain_up, 0, 3)
         raw_ctrl.addWidget(self.gain_value, 0, 4)
-        raw_ctrl.addWidget(QLabel("窗口"), 1, 0)
+        raw_ctrl.addWidget(QLabel("Window"), 1, 0)
         raw_ctrl.addWidget(self.window_down, 1, 1)
         raw_ctrl.addWidget(self.window_reset, 1, 2)
         raw_ctrl.addWidget(self.window_up, 1, 3)
         raw_ctrl.addWidget(self.window_value, 1, 4)
 
-        raw_group = QGroupBox("原始波形控制")
+        raw_group = QGroupBox("Raw Waveform Controls")
         raw_group.setLayout(raw_ctrl)
 
         right = QVBoxLayout()
@@ -154,7 +150,7 @@ class MainWindow(QMainWindow):
         self.ble.connect_device(address)
 
     def _on_connection(self, ok: bool) -> None:
-        self.status_label.setText("已连接" if ok else "未连接")
+        self.status_label.setText("Connected" if ok else "Disconnected")
         if ok:
             self.processor.reset()
 
@@ -172,8 +168,12 @@ class MainWindow(QMainWindow):
 
     def _update_rates(self) -> None:
         r = self.processor.rates
-        self.hr_label.setText(f"心率: {r.bpm:.0f} 次/分" if r.bpm is not None else "心率: -- 次/分")
-        self.rr_label.setText(f"呼吸率: {r.rpm:.0f} 次/分" if r.rpm is not None else "呼吸率: -- 次/分")
+        self.hr_label.setText(
+            f"Heart Rate: {r.bpm:.0f} bpm" if r.bpm is not None else "Heart Rate: -- bpm"
+        )
+        self.rr_label.setText(
+            f"Respiration Rate: {r.rpm:.0f} rpm" if r.rpm is not None else "Respiration Rate: -- rpm"
+        )
 
     def _plot_buffer(self, curve, buf, window_ms: int, gain: float) -> None:
         ts, vs = buf.snapshot()

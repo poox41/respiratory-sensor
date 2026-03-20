@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.flow
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.random.Random
-//模拟混合通道数据
+// Simulated mixed-channel signal data.
 class MockDataSource(
     private val fsHz: Int = 100,
     private val startBpm: Float = 75f,

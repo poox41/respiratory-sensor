@@ -129,12 +129,12 @@ fun AppScreen() {
         if (pendingConnect) {
             when (connectionState) {
                 is ConnectionState.Connected -> {
-                    connectionMessage = "连接成功"
+                    connectionMessage = "Connection successful"
                     showBleDialog = false
                     pendingConnect = false
                 }
                 ConnectionState.Disconnected -> {
-                    connectionMessage = "连接失败"
+                    connectionMessage = "Connection failed"
                     showBleDialog = false
                     pendingConnect = false
                 }
@@ -260,9 +260,9 @@ fun AppScreen() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(text = "蓝牙接收预览", style = MaterialTheme.typography.titleMedium)
+                            Text(text = "Bluetooth Receive Preview", style = MaterialTheme.typography.titleMedium)
                             OutlinedButton(onClick = { bleClient.clearPreview() }) {
-                                Text("清空")
+                                Text("Clear")
                             }
                         }
                         Spacer(Modifier.height(6.dp))
@@ -273,7 +273,7 @@ fun AppScreen() {
                                 .verticalScroll(previewScroll)
                         ) {
                         Text(
-                            text = "HEX: " + if (rawHex.isBlank()) "暂无数据" else rawHex,
+                            text = "HEX: " + if (rawHex.isBlank()) "No data" else rawHex,
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Spacer(Modifier.height(6.dp))
@@ -286,7 +286,7 @@ fun AppScreen() {
                         if (!connectionError.isNullOrBlank()) {
                             Spacer(Modifier.height(6.dp))
                             Text(
-                                text = "连接错误: $connectionError",
+                                text = "Connection error: $connectionError",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -316,7 +316,7 @@ fun AppScreen() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "自动幅度",
+                                text = "Auto Gain",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Switch(
@@ -331,7 +331,7 @@ fun AppScreen() {
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = "自动时间窗",
+                                text = "Auto Time Window",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                             Switch(
@@ -347,9 +347,9 @@ fun AppScreen() {
                         ) {
                             Text(
                                 text = if (autoRawGain) {
-                                    "幅度 自动(x" + String.format("%.1f", effectiveRawGain) + ")"
+                                    "Gain Auto (x" + String.format("%.1f", effectiveRawGain) + ")"
                                 } else {
-                                    "幅度 x" + String.format("%.1f", rawGain)
+                                    "Gain x" + String.format("%.1f", rawGain)
                                 },
                                 style = MaterialTheme.typography.bodyMedium
                             )
@@ -361,7 +361,7 @@ fun AppScreen() {
                                 OutlinedButton(
                                     onClick = { rawGain = 1f },
                                     enabled = !autoRawGain
-                                ) { Text("重置") }
+                                ) { Text("Reset") }
                                 Button(
                                     onClick = { rawGain = (rawGain * 1.2f).coerceIn(0.1f, 200f) },
                                     enabled = !autoRawGain
@@ -376,9 +376,9 @@ fun AppScreen() {
                         ) {
                             Text(
                                 text = if (autoRawWindow) {
-                                    "时间窗 自动(" + String.format("%.1f", effectiveRawWindowMs / 1000f) + "s)"
+                                    "Window Auto (" + String.format("%.1f", effectiveRawWindowMs / 1000f) + "s)"
                                 } else {
-                                    "时间窗 " + String.format("%.1f", rawWindowMs / 1000f) + "s"
+                                    "Window " + String.format("%.1f", rawWindowMs / 1000f) + "s"
                                 },
                                 style = MaterialTheme.typography.bodyMedium
                             )
@@ -392,7 +392,7 @@ fun AppScreen() {
                                 OutlinedButton(
                                     onClick = { rawWindowMs = 6000L },
                                     enabled = !autoRawWindow
-                                ) { Text("重置") }
+                                ) { Text("Reset") }
                                 Button(
                                     onClick = {
                                         rawWindowMs = (rawWindowMs * 1.5).toLong().coerceIn(1000L, 30000L)
@@ -473,11 +473,11 @@ fun AppScreen() {
     if (connectionMessage != null) {
         AlertDialog(
             onDismissRequest = { connectionMessage = null },
-            title = { Text("蓝牙") },
+            title = { Text("Bluetooth") },
             text = { Text(connectionMessage ?: "") },
             confirmButton = {
                 Button(onClick = { connectionMessage = null }) {
-                    Text("确定")
+                    Text("OK")
                 }
             }
         )

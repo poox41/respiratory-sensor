@@ -1,5 +1,5 @@
 package com.example.breathheartdemo
-//存最近10秒波形，永远只存固定容量,新数据进来会覆盖最旧的数据.
+// Keep a fixed-capacity recent waveform history and overwrite the oldest samples.
 class RingBuffer(private val capacity: Int) {
     private val t = LongArray(capacity)
     private val v = FloatArray(capacity)

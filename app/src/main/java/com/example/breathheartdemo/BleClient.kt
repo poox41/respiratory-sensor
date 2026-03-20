@@ -109,7 +109,7 @@ class BleClient(
         }
 
         override fun onScanFailed(errorCode: Int) {
-            _connectionError.value = "扫描失败: $errorCode"
+            _connectionError.value = "Scan failed: $errorCode"
             _connectionState.value = ConnectionState.Disconnected
         }
     }
@@ -118,7 +118,7 @@ class BleClient(
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                _connectionError.value = "连接失败: $status"
+                _connectionError.value = "Connection failed: $status"
                 closeGatt()
                 _connectionState.value = ConnectionState.Disconnected
                 return
@@ -136,31 +136,31 @@ class BleClient(
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                _connectionError.value = "发现服务失败: $status"
+                _connectionError.value = "Service discovery failed: $status"
                 gatt.disconnect()
                 return
             }
             val service = gatt.getService(SERVICE_UUID)
             if (service == null) {
-                _connectionError.value = "未找到服务: $SERVICE_UUID"
+                _connectionError.value = "Service not found: $SERVICE_UUID"
                 gatt.disconnect()
                 return
             }
             val characteristic = service.getCharacteristic(DATA_CHAR_UUID)
             if (characteristic == null) {
-                _connectionError.value = "未找到特征值: $DATA_CHAR_UUID"
+                _connectionError.value = "Characteristic not found: $DATA_CHAR_UUID"
                 gatt.disconnect()
                 return
             }
             val ok = gatt.setCharacteristicNotification(characteristic, true)
             if (!ok) {
-                _connectionError.value = "启用通知失败"
+                _connectionError.value = "Failed to enable notifications"
                 gatt.disconnect()
                 return
             }
             val cccd = characteristic.getDescriptor(CCCD_UUID)
             if (cccd == null) {
-                _connectionError.value = "未找到通知描述符"
+                _connectionError.value = "Notification descriptor not found"
                 gatt.disconnect()
                 return
             }
@@ -177,7 +177,7 @@ class BleClient(
                 }
             }
             if (!writeOk) {
-                _connectionError.value = "写入通知描述符失败"
+                _connectionError.value = "Failed to write notification descriptor"
                 gatt.disconnect()
             }
         }
@@ -190,7 +190,7 @@ class BleClient(
         ) {
             if (descriptor.uuid != CCCD_UUID) return
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                _connectionError.value = "订阅通知失败: $status"
+                _connectionError.value = "Notification subscription failed: $status"
                 gatt.disconnect()
                 return
             }

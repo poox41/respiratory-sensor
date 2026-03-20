@@ -20,7 +20,7 @@ import kotlinx.coroutines.delay
 import kotlin.math.max
 import kotlin.math.min
 
-//画曲线
+// Draw the waveform.
 @Composable
 fun Waveform(
     modifier: Modifier = Modifier,

@@ -1,34 +1,34 @@
 <resources>
-    <string name="app_name">呼吸心率监测</string>
-    <string name="title">呼吸心率监测</string>
-    <string name="mode">数据源</string>
-    <string name="mock">模拟</string>
-    <string name="ble">蓝牙</string>
+    <string name="app_name">Breath Heart Monitor</string>
+    <string name="title">Breath Heart Monitor</string>
+    <string name="mode">Data Source</string>
+    <string name="mock">Mock</string>
+    <string name="ble">Bluetooth</string>
 
-    <string name="hr">心率</string>
-    <string name="rr">呼吸</string>
-    <string name="bpm_unit">次/分</string>
-    <string name="rpm_unit">次/分</string>
+    <string name="hr">Heart Rate</string>
+    <string name="rr">Respiration</string>
+    <string name="bpm_unit">bpm</string>
+    <string name="rpm_unit">rpm</string>
 
-    <string name="status_mock">当前：模拟数据</string>
-    <string name="status_ble">当前：蓝牙数据</string>
+    <string name="status_mock">Current: Mock Data</string>
+    <string name="status_ble">Current: Bluetooth Data</string>
 
-    <string name="chart_raw">混合通道</string>
-    <string name="chart_resp">呼吸波形</string>
-    <string name="chart_hr">心跳波形</string>
+    <string name="chart_raw">Mixed Signal</string>
+    <string name="chart_resp">Respiration Waveform</string>
+    <string name="chart_hr">Heart Waveform</string>
 
-    <string name="ble_dialog_title">蓝牙设备</string>
-    <string name="ble_status">状态</string>
-    <string name="ble_disconnected">未连接</string>
-    <string name="ble_scanning">扫描中</string>
-    <string name="ble_connecting">连接中</string>
-    <string name="ble_connected">已连接</string>
-    <string name="ble_scan">扫描</string>
-    <string name="ble_stop">停止</string>
-    <string name="ble_disconnect">断开</string>
-    <string name="ble_connect">连接</string>
-    <string name="ble_permissions_missing">蓝牙权限未授予</string>
-    <string name="ble_no_devices">暂无设备</string>
-    <string name="ble_no_name">未命名设备</string>
-    <string name="ble_close">关闭</string>
+    <string name="ble_dialog_title">Bluetooth Devices</string>
+    <string name="ble_status">Status</string>
+    <string name="ble_disconnected">Disconnected</string>
+    <string name="ble_scanning">Scanning</string>
+    <string name="ble_connecting">Connecting</string>
+    <string name="ble_connected">Connected</string>
+    <string name="ble_scan">Scan</string>
+    <string name="ble_stop">Stop</string>
+    <string name="ble_disconnect">Disconnect</string>
+    <string name="ble_connect">Connect</string>
+    <string name="ble_permissions_missing">Bluetooth permissions are missing</string>
+    <string name="ble_no_devices">No devices found</string>
+    <string name="ble_no_name">Unnamed device</string>
+    <string name="ble_close">Close</string>
 </resources>

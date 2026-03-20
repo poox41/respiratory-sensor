@@ -1,5 +1,5 @@
 package com.example.breathheartdemo
-//最简单的方式拆分呼吸/心跳
+// Simple filters for separating respiration and heart signals.
 class MovingAverage(private val windowSize: Int) {
     private val buf = FloatArray(windowSize)
     private var sum = 0f
