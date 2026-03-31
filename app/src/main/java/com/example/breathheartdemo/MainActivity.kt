@@ -70,6 +70,8 @@ fun AppScreen() {
     val rawHex by bleClient.rawHex.collectAsState()
     val rawBytes by bleClient.rawBytes.collectAsState()
     val connectionError by bleClient.connectionError.collectAsState()
+    val exportSessionPath by bleClient.exportSessionPath.collectAsState()
+    val exportFileName by bleClient.exportFileName.collectAsState()
 
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
@@ -282,6 +284,22 @@ fun AppScreen() {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (!exportSessionPath.isNullOrBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = "Export folder: $exportSessionPath",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (!exportFileName.isNullOrBlank()) {
+                            Spacer(Modifier.height(6.dp))
+                            Text(
+                                text = "Current file: $exportFileName",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Spacer(Modifier.height(6.dp))
                         if (!connectionError.isNullOrBlank()) {
                             Spacer(Modifier.height(6.dp))

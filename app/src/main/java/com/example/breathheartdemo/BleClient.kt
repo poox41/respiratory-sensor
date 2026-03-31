@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import java.io.File
 import java.util.UUID
 
 data class BleDevice(
@@ -85,6 +86,14 @@ class BleClient(
     private var pendingByte: Int? = null
     private var lastSampleMs: Double? = null
     private val samplePeriodMs = if (sampleRateHz > 0) 1000.0 / sampleRateHz else 10.0
+    private val dataExporter = DataExporter(context)
+    private var exportSessionDir: File? = null
+
+    private val _exportSessionPath = MutableStateFlow<String?>(null)
+    val exportSessionPath: StateFlow<String?> = _exportSessionPath
+
+    private val _exportFileName = MutableStateFlow<String?>(null)
+    val exportFileName: StateFlow<String?> = _exportFileName
 
     fun clearPreview() {
         _rawText.value = ""
@@ -200,6 +209,9 @@ class BleClient(
                 rssi = 0,
                 device = gatt.device
             )
+            exportSessionDir = dataExporter.startSession(device)
+            _exportSessionPath.value = exportSessionDir?.absolutePath
+            _exportFileName.value = dataExporter.currentFileName()
             _connectionState.value = ConnectionState.Connected(device)
         }
 
@@ -280,6 +292,9 @@ class BleClient(
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
     private fun closeGatt() {
+        dataExporter.close()
+        exportSessionDir = null
+        _exportFileName.value = null
         gatt?.close()
         gatt = null
         currentDevice = null
@@ -318,9 +333,11 @@ class BleClient(
 
     private fun handleIncoming(bytes: ByteArray) {
         if (bytes.isEmpty()) return
+        val receiveTimeMs = System.currentTimeMillis()
         val preview = buildPreview(bytes, bytes.size)
         _rawText.value = appendPreview(_rawText.value, preview, 2048)
         val hex = buildHex(bytes, bytes.size)
+        dataExporter.appendRawPacket(receiveTimeMs, hex, bytes.size)
         val line = "RX(${bytes.size}): $hex\n"
         _rawHex.value = appendPreview(_rawHex.value, line, 4096)
         Log.d(logTag, "RX(${bytes.size}): $hex")
@@ -332,12 +349,13 @@ class BleClient(
         val firstPending = pendingByte
         val leValues = ArrayList<Int>(bytes.size / 2 + 1)
         val beValues = ArrayList<Int>(bytes.size / 2 + 1)
+        val exportedSamples = ArrayList<ExportedSample>(bytes.size / 2 + 1)
         if (firstPending != null) {
             val lo = firstPending
             val hi = bytes[0].toInt() and 0xFF
             leValues.add((hi shl 8) or lo)
             beValues.add((lo shl 8) or hi)
-            emitSample(lo, hi)
+            exportedSamples.add(emitSample(receiveTimeMs, lo, hi))
             idx = 1
             pendingByte = null
         }
@@ -346,12 +364,14 @@ class BleClient(
             val hi = bytes[idx + 1].toInt() and 0xFF
             leValues.add((hi shl 8) or lo)
             beValues.add((lo shl 8) or hi)
-            emitSample(lo, hi)
+            exportedSamples.add(emitSample(receiveTimeMs, lo, hi))
             idx += 2
         }
         if (idx < bytes.size) {
             pendingByte = bytes[idx].toInt() and 0xFF
         }
+        dataExporter.appendSamples(exportedSamples)
+        _exportFileName.value = dataExporter.currentFileName()
 
         if (leValues.isNotEmpty()) {
             val preview16 = build16Preview(leValues, beValues, 24)
@@ -367,12 +387,19 @@ class BleClient(
         }
     }
 
-    private fun emitSample(lo: Int, hi: Int) {
+    private fun emitSample(receiveTimeMs: Long, lo: Int, hi: Int): ExportedSample {
         val raw = (hi shl 8) or lo
         val signed = raw.toShort().toInt()
         val t = lastSampleMs?.toLong() ?: System.currentTimeMillis()
         _samples.tryEmit(Sample(t, signed.toFloat()))
         lastSampleMs = (lastSampleMs ?: t.toDouble()) + samplePeriodMs
+        return ExportedSample(
+            receiveTimeMs = receiveTimeMs,
+            sampleTimeMs = t,
+            value = signed,
+            lo = lo,
+            hi = hi
+        )
     }
 
     private fun resetSampleClock() {
