@@ -62,3 +62,91 @@ class PeakRateEstimator(
         values.clear()
     }
 }
+
+class RateSmoother(
+    private val historySize: Int,
+    private val alpha: Float,
+    private val maxStepPerUpdate: Float
+) {
+    private val history = ArrayDeque<Float>()
+    private var current: Float? = null
+
+    fun update(raw: Float?): Float? {
+        if (raw == null) return current
+
+        history.addLast(raw)
+        while (history.size > historySize) {
+            history.removeFirst()
+        }
+
+        val target = median(history)
+        val previous = current
+        if (previous == null) {
+            current = target
+            return current
+        }
+
+        val blended = previous + (target - previous) * alpha
+        val delta = (blended - previous).coerceIn(-maxStepPerUpdate, maxStepPerUpdate)
+        current = previous + delta
+        return current
+    }
+
+    fun clear() {
+        history.clear()
+        current = null
+    }
+
+    private fun median(values: Collection<Float>): Float {
+        val sorted = values.sorted()
+        val mid = sorted.size / 2
+        return if (sorted.size % 2 == 0) {
+            (sorted[mid - 1] + sorted[mid]) / 2f
+        } else {
+            sorted[mid]
+        }
+    }
+}
+
+class RespRateGate(
+    private val minAmplitude: Float,
+    private val maxJumpRpm: Float,
+    private val maxHoldMs: Long
+) {
+    private var lastAcceptedRaw: Float? = null
+    private var lastAcceptedAtMs: Long = 0L
+
+    fun filter(
+        nowMs: Long,
+        rawRate: Float?,
+        signalAmplitude: Float,
+        hasEnoughWaveform: Boolean,
+        currentDisplayed: Float?
+    ): Float? {
+        if (!hasEnoughWaveform || signalAmplitude < minAmplitude || rawRate == null) {
+            return if (currentDisplayed != null && nowMs - lastAcceptedAtMs <= maxHoldMs) {
+                currentDisplayed
+            } else {
+                null
+            }
+        }
+
+        val previousRaw = lastAcceptedRaw
+        if (previousRaw != null && kotlin.math.abs(rawRate - previousRaw) > maxJumpRpm) {
+            return if (currentDisplayed != null && nowMs - lastAcceptedAtMs <= maxHoldMs) {
+                currentDisplayed
+            } else {
+                null
+            }
+        }
+
+        lastAcceptedRaw = rawRate
+        lastAcceptedAtMs = nowMs
+        return rawRate
+    }
+
+    fun clear() {
+        lastAcceptedRaw = null
+        lastAcceptedAtMs = 0L
+    }
+}

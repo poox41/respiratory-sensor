@@ -26,11 +26,27 @@ class Processor(private val fsHz: Int) {
         minBpm = 6f,
         maxBpm = 30f
     )
+    private val hrRateSmoother = RateSmoother(
+        historySize = 3,
+        alpha = 0.45f,
+        maxStepPerUpdate = 3f
+    )
+    private val respRateSmoother = RateSmoother(
+        historySize = 5,
+        alpha = 0.25f,
+        maxStepPerUpdate = 0.8f
+    )
+    private val respRateGate = RespRateGate(
+        minAmplitude = 0.12f,
+        maxJumpRpm = 4f,
+        maxHoldMs = 12_000L
+    )
 
     private val _rates = MutableStateFlow(Rates())
     val rates: StateFlow<Rates> = _rates
 
-    private var lastEstimateMs = 0L
+    private var lastHrEstimateMs = 0L
+    private var lastRespEstimateMs = 0L
 
     fun onSample(sample: Sample) {
         val t = sample.tMs
@@ -47,11 +63,32 @@ class Processor(private val fsHz: Int) {
         hrEstimator.add(t, hr)
         respEstimator.add(t, resp)
 
-        if (t - lastEstimateMs >= 1000L) {
-            lastEstimateMs = t
+        var nextBpm = _rates.value.bpm
+        var nextRpm = _rates.value.rpm
+
+        if (t - lastHrEstimateMs >= 1000L) {
+            lastHrEstimateMs = t
+            nextBpm = hrRateSmoother.update(hrEstimator.estimate())
+        }
+
+        if (t - lastRespEstimateMs >= 2000L) {
+            lastRespEstimateMs = t
+            val rawRespRate = respEstimator.estimate()
+            val respAmplitude = measureRecentAmplitude(windowSec = 12)
+            val gatedRespRate = respRateGate.filter(
+                nowMs = t,
+                rawRate = rawRespRate,
+                signalAmplitude = respAmplitude,
+                hasEnoughWaveform = respBufHasEnoughData(windowSec = 10),
+                currentDisplayed = _rates.value.rpm
+            )
+            nextRpm = respRateSmoother.update(gatedRespRate)
+        }
+
+        if (nextBpm != _rates.value.bpm || nextRpm != _rates.value.rpm) {
             _rates.value = Rates(
-                bpm = hrEstimator.estimate(),
-                rpm = respEstimator.estimate()
+                bpm = nextBpm,
+                rpm = nextRpm
             )
         }
     }
@@ -62,7 +99,43 @@ class Processor(private val fsHz: Int) {
         hrBuf.clear()
         hrEstimator.clear()
         respEstimator.clear()
-        lastEstimateMs = 0L
+        hrRateSmoother.clear()
+        respRateSmoother.clear()
+        respRateGate.clear()
+        lastHrEstimateMs = 0L
+        lastRespEstimateMs = 0L
         _rates.value = Rates()
+    }
+
+    private fun respBufHasEnoughData(windowSec: Int): Boolean {
+        val (ts, vs) = respBuf.snapshot()
+        if (vs.size < fsHz * windowSec / 2) return false
+        val latestTs = ts.lastOrNull() ?: return false
+        val minTs = latestTs - windowSec * 1000L
+        var count = 0
+        for (i in vs.indices) {
+            if (ts[i] >= minTs) count++
+        }
+        return count >= fsHz * windowSec * 8 / 10
+    }
+
+    private fun measureRecentAmplitude(windowSec: Int): Float {
+        val (ts, vs) = respBuf.snapshot()
+        if (vs.isEmpty()) return 0f
+        val latestTs = ts.lastOrNull() ?: return 0f
+        val minTs = latestTs - windowSec * 1000L
+        var minV = Float.POSITIVE_INFINITY
+        var maxV = Float.NEGATIVE_INFINITY
+        for (i in vs.indices) {
+            if (ts[i] < minTs) continue
+            val v = vs[i]
+            if (v < minV) minV = v
+            if (v > maxV) maxV = v
+        }
+        return if (minV == Float.POSITIVE_INFINITY || maxV == Float.NEGATIVE_INFINITY) {
+            0f
+        } else {
+            maxV - minV
+        }
     }
 }
