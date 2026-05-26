@@ -4,7 +4,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 // Split respiration and heart components, then estimate bpm and rpm.
 class Processor(private val fsHz: Int) {
-    private val cap = fsHz * 30
+    private val cap = fsHz * 330
     val rawBuf = RingBuffer(cap)
     val respBuf = RingBuffer(cap)
     val hrBuf = RingBuffer(cap)

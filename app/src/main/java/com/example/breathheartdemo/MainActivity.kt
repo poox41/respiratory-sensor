@@ -42,6 +42,7 @@ fun AppScreen() {
     val fsHz = 50
     val context = LocalContext.current
     val processor = remember { Processor(fsHz) }
+    val sleepStateService = remember { SleepStateService(context.applicationContext, fsHz) }
     val rates by processor.rates.collectAsState()
 
     var useMock by remember { mutableStateOf(true) }
@@ -78,6 +79,8 @@ fun AppScreen() {
 
     var pendingConnect by remember { mutableStateOf(false) }
     var connectionMessage by remember { mutableStateOf<String?>(null) }
+    var sleepStateResult by remember { mutableStateOf<SleepStateResult?>(null) }
+    var sleepStateAnalyzing by remember { mutableStateOf(false) }
     var lastConnectionState by remember { mutableStateOf<ConnectionState>(ConnectionState.Disconnected) }
 
     var hasBlePermissions by remember { mutableStateOf(hasBlePermissions(context)) }
@@ -202,6 +205,51 @@ fun AppScreen() {
                         value = rates.rpm?.let { "%.0f".format(it) } ?: "--",
                         unit = stringResource(R.string.rpm_unit)
                     )
+                }
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = MaterialTheme.shapes.large
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "睡眠状态",
+                                    style = MaterialTheme.typography.titleMedium
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    text = sleepStateText(
+                                        result = sleepStateResult,
+                                        analyzing = sleepStateAnalyzing
+                                    ),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Button(
+                                onClick = {
+                                    sleepStateAnalyzing = true
+                                    sleepStateResult = null
+                                    scope.launch {
+                                        sleepStateResult = sleepStateService.predict(processor, rates)
+                                        sleepStateAnalyzing = false
+                                    }
+                                },
+                                enabled = !sleepStateAnalyzing
+                            ) {
+                                Text("判断睡眠状态")
+                            }
+                        }
+                    }
                 }
             }
 
@@ -776,5 +824,17 @@ private fun hasBleConnectPermission(context: android.content.Context): Boolean {
         ) == PackageManager.PERMISSION_GRANTED
     } else {
         true
+    }
+}
+
+private fun sleepStateText(result: SleepStateResult?, analyzing: Boolean): String {
+    if (analyzing) return "正在分析..."
+    if (result == null) return "等待判断"
+
+    return when (result.code) {
+        0 -> "当前状态：${result.stateName}，置信度 ${"%.0f".format(result.confidence * 100f)}%"
+        1001 -> "当前采集数据不足，请继续采集后重试（${result.message}）"
+        1002 -> "当前数据暂无法判断：信号质量差"
+        else -> "状态识别失败：${result.message}"
     }
 }
