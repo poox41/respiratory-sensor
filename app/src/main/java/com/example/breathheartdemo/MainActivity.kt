@@ -1,5 +1,6 @@
 ﻿package com.example.breathheartdemo
 
+import android.annotation.SuppressLint
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
@@ -26,6 +27,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.max
 import kotlin.math.min
+import android.util.Log
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -38,6 +40,7 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 @OptIn(ExperimentalMaterial3Api::class)
+@SuppressLint("MissingPermission")
 fun AppScreen() {
     val fsHz = 50
     val context = LocalContext.current
@@ -51,11 +54,22 @@ fun AppScreen() {
     var autoRawWindow by remember { mutableStateOf(true) }
     var rawGain by remember { mutableStateOf(1f) }
     var rawWindowMs by remember { mutableStateOf(6000L) }
+    var autoHrGain by remember { mutableStateOf(false) }
+    var hrGain by remember { mutableStateOf(1f) }
     val effectiveRawWindowMs = rememberAutoWindowMs(
         rates = rates,
         autoEnabled = autoRawWindow,
         manualWindowMs = rawWindowMs
     )
+    val effectiveHrGain = rememberAutoGain(
+        buffer = processor.hrBuf,
+        windowMs = 6000L,
+        yMin = -1f,
+        yMax = 1f,
+        autoEnabled = autoHrGain,
+        manualGain = hrGain
+    )
+
     val effectiveRawGain = rememberAutoGain(
         buffer = processor.rawBuf,
         windowMs = effectiveRawWindowMs,
@@ -73,6 +87,10 @@ fun AppScreen() {
     val connectionError by bleClient.connectionError.collectAsState()
     val exportSessionPath by bleClient.exportSessionPath.collectAsState()
     val exportFileName by bleClient.exportFileName.collectAsState()
+    val raw16Preview by bleClient.raw16Preview.collectAsState()
+    val rawPreview by processor.rawPreview.collectAsState()
+    val centeredPreview by processor.centeredPreview.collectAsState()
+    val peakTimes by processor.peakTimes.collectAsState()
 
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
@@ -85,6 +103,8 @@ fun AppScreen() {
 
     var hasBlePermissions by remember { mutableStateOf(hasBlePermissions(context)) }
     val previewScroll = rememberScrollState()
+    var isSensorLogging by remember { mutableStateOf(false) }
+    var sensorLogPath by remember { mutableStateOf<String?>(null) }
 
     val permissionLauncher =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
@@ -363,6 +383,64 @@ fun AppScreen() {
             }
 
             item {
+                Card(shape = MaterialTheme.shapes.large) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(text = "数据值预览 (s16)", style = MaterialTheme.typography.titleMedium)
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "原始: " + if (raw16Preview.isBlank()) "等待数据..." else raw16Preview,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            text = "原始s16: $rawPreview",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val btnLogger = processor.sensorLogger
+                            if (btnLogger == null) {
+                               Button(onClick = {
+                                   val l = SensorDataLogger(context.applicationContext)
+                                    val f = l.startLogging()
+                                    sensorLogPath = f?.absolutePath
+                                   processor.sensorLogger = l
+                                    isSensorLogging = true
+                                    Log.i("MainActivity", "日志记录已开始")
+                                }) { Text("记录日志到CSV") }
+                            } else {
+                               Button(onClick = {
+                                    val f = btnLogger.stopLogging()
+                                    sensorLogPath = f?.absolutePath
+                                   processor.sensorLogger = null
+                                    isSensorLogging = false
+                                    Log.i("MainActivity", "日志已停止")
+                                }) { Text("停止记录") }
+                            }
+                        }
+                        if (!sensorLogPath.isNullOrBlank()) {
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                text = "日志文件: $sensorLogPath",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = "去直流: $centeredPreview",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+            }
+
+            item {
                 ChartCard(title = stringResource(R.string.chart_raw)) {
                     Column {
                         Waveform(
@@ -486,15 +564,63 @@ fun AppScreen() {
 
             item {
                 ChartCard(title = stringResource(R.string.chart_hr)) {
-                    Waveform(
-                        buffer = processor.hrBuf,
-                        color = MaterialTheme.colorScheme.error,
-                        yMin = -2f,
-                        yMax = 2f,
-                        showGrid = true,
-                        showZeroLine = true,
-                        zeroLineValue = 0f
-                    )
+                    Column {
+                        Waveform(
+                            buffer = processor.hrBuf,
+                            color = MaterialTheme.colorScheme.error,
+                            yMin = -1f,
+                            yMax = 1f,
+                            gain = effectiveHrGain,
+                            showGrid = true,
+                            showZeroLine = true,
+                            zeroLineValue = 0f,
+                            peakTimes = peakTimes
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Auto Gain",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Switch(
+                                checked = autoHrGain,
+                                onCheckedChange = { autoHrGain = it }
+                            )
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (autoHrGain) {
+                                    "Gain Auto (x" + String.format("%.1f", effectiveHrGain) + ")"
+                                } else {
+                                    "Gain x" + String.format("%.1f", hrGain)
+                                },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { hrGain = (hrGain / 1.2f).coerceIn(0.1f, 200f) },
+                                    enabled = !autoHrGain
+                                ) { Text("-") }
+                                OutlinedButton(
+                                    onClick = { hrGain = 1f },
+                                    enabled = !autoHrGain
+                                ) { Text("Reset") }
+                                Button(
+                                    onClick = { hrGain = (hrGain * 1.2f).coerceIn(0.1f, 200f) },
+                                    enabled = !autoHrGain
+                                ) { Text("+ ") }
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -838,3 +964,11 @@ private fun sleepStateText(result: SleepStateResult?, analyzing: Boolean): Strin
         else -> "状态识别失败：${result.message}"
     }
 }
+
+
+
+
+
+
+
+

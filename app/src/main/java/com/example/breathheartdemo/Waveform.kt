@@ -1,4 +1,4 @@
-package com.example.breathheartdemo
+﻿package com.example.breathheartdemo
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +14,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.delay
@@ -33,7 +35,8 @@ fun Waveform(
     offset: Float = 0f,
     showGrid: Boolean = true,
     showZeroLine: Boolean = true,
-    zeroLineValue: Float? = null
+    zeroLineValue: Float? = null,
+    peakTimes: List<Long> = emptyList()
 ) {
     var tick by remember { mutableLongStateOf(0L) }
     val effectiveGain = gain
@@ -52,7 +55,7 @@ fun Waveform(
             val w = size.width
             val h = size.height
             val path = Path()
-            val minStepPx = 1.5f
+            val minStepPx = 0.5f
             var lastX = Float.NEGATIVE_INFINITY
             var started = false
 
@@ -108,8 +111,8 @@ fun Waveform(
                 if (x - lastX < minStepPx) continue
                 lastX = x
                 val scaled = (vs[i] - offset) * effectiveGain + offset
-                val clamped = min(vMax, max(vMin, scaled))
-                val yNorm = (clamped - vMin) / range
+//            val clamped = min(vMax, max(vMin, scaled))
+                val yNorm = ((scaled - vMin) / range).coerceIn(0f, 1f)
                 val y = h - yNorm * h
                 if (!started) {
                     path.moveTo(x, y)
@@ -124,9 +127,36 @@ fun Waveform(
                     path = path,
                     color = color,
                     alpha = 0.9f,
-                    style = Stroke(width = 2f)
+                    style = Stroke(width = 1.5f, cap = StrokeCap.Round, join = StrokeJoin.Round)
                 )
+            }
+
+            // Draw dashed rectangles between consecutive peaks (marking complete heart cycles)
+            if (peakTimes.size >= 2) {
+                val dash = PathEffect.dashPathEffect(floatArrayOf(4f, 3f))
+                val rectColor = Color.Red.copy(alpha = 0.35f)
+                for (i in 0 until peakTimes.size - 1) {
+                    val p1 = peakTimes[i]
+                    val p2 = peakTimes[i + 1]
+                    if (p1 >= tMin) {
+                        val x1 = ((p1 - tMin).toFloat() / windowMs.toFloat()).coerceIn(0f, 1f) * w
+                        val x2 = ((p2 - tMin).toFloat() / windowMs.toFloat()).coerceIn(0f, 1f) * w
+                        val rectPath = Path()
+                        rectPath.moveTo(x1, 0f)
+                        rectPath.lineTo(x2, 0f)
+                        rectPath.lineTo(x2, h)
+                        rectPath.lineTo(x1, h)
+                        rectPath.close()
+                        drawPath(
+                            path = rectPath,
+                            color = rectColor,
+                            style = Stroke(width = 1.2f, pathEffect = dash)
+                        )
+                    }
+                }
             }
         }
     }
 }
+
+

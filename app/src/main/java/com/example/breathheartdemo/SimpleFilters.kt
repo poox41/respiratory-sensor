@@ -1,4 +1,4 @@
-package com.example.breathheartdemo
+﻿package com.example.breathheartdemo
 // Simple filters for separating respiration and heart signals.
 class MovingAverage(private val windowSize: Int) {
     private val buf = FloatArray(windowSize)
@@ -19,4 +19,11 @@ class MovingAverage(private val windowSize: Int) {
 class ShortSmoother(windowSize: Int) {
     private val ma = MovingAverage(windowSize)
     fun next(x: Float) = ma.next(x)
+}
+
+
+class DualSmoother(windowSize: Int) {
+    private val ma1 = MovingAverage(windowSize)
+    private val ma2 = MovingAverage(windowSize)
+    fun next(x: Float): Float = ma2.next(ma1.next(x))
 }

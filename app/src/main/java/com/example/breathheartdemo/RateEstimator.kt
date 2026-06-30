@@ -19,7 +19,7 @@ class PeakRateEstimator(
     fun estimate(): Float? {
         val (_, vs) = values.snapshot()
         val n = vs.size
-        if (n < fsHz * 2) return null
+        if (n < fsHz) return null
 
         var mean = 0f
         for (x in vs) mean += x

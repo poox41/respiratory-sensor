@@ -1,4 +1,4 @@
-package com.example.breathheartdemo
+﻿package com.example.breathheartdemo
 
 import android.Manifest
 import android.bluetooth.BluetoothDevice
@@ -17,6 +17,7 @@ import android.content.Context
 import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
+import android.annotation.SuppressLint
 import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -232,6 +233,7 @@ class BleClient(
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
+    @SuppressLint("MissingPermission")
     fun startScan() {
         if (!hasScanPermission()) return
         if (adapter?.isEnabled != true) return
@@ -250,6 +252,7 @@ class BleClient(
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_SCAN)
+    @SuppressLint("MissingPermission")
     fun stopScan() {
         if (!hasScanPermission()) return
         if (scanning) {
@@ -262,6 +265,7 @@ class BleClient(
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    @SuppressLint("MissingPermission")
     fun connect(device: BleDevice) {
         if (!hasConnectPermission()) return
         if (hasScanPermission()) {
@@ -280,6 +284,7 @@ class BleClient(
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    @SuppressLint("MissingPermission")
     fun disconnect() {
         if (!hasConnectPermission()) {
             closeGatt()
@@ -291,6 +296,7 @@ class BleClient(
     }
 
     @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
+    @SuppressLint("MissingPermission")
     private fun closeGatt() {
         dataExporter.close()
         exportSessionDir = null
@@ -334,15 +340,15 @@ class BleClient(
     private fun handleIncoming(bytes: ByteArray) {
         if (bytes.isEmpty()) return
         val receiveTimeMs = System.currentTimeMillis()
-        val preview = buildPreview(bytes, bytes.size)
-        _rawText.value = appendPreview(_rawText.value, preview, 2048)
-        val hex = buildHex(bytes, bytes.size)
-        dataExporter.appendRawPacket(receiveTimeMs, hex, bytes.size)
-        val line = "RX(${bytes.size}): $hex\n"
-        _rawHex.value = appendPreview(_rawHex.value, line, 4096)
-        Log.d(logTag, "RX(${bytes.size}): $hex")
-        _rawBytes.value = _rawBytes.value + bytes.size
-        _lastRxMs.value = System.currentTimeMillis()
+
+
+
+
+
+
+
+
+
 
         ensureSampleClock()
         var idx = 0
@@ -353,18 +359,25 @@ class BleClient(
         if (firstPending != null) {
             val lo = firstPending
             val hi = bytes[0].toInt() and 0xFF
-            leValues.add((hi shl 8) or lo)
-            beValues.add((lo shl 8) or hi)
-            exportedSamples.add(emitSample(receiveTimeMs, lo, hi))
+            val raw = (hi shl 8) or lo
+            if (raw != 0 && raw != 4095) {
+                leValues.add(raw)
+                beValues.add((lo shl 8) or hi)
+                exportedSamples.add(emitSample(receiveTimeMs, lo, hi))
+            }
             idx = 1
             pendingByte = null
         }
         while (idx + 1 < bytes.size) {
             val lo = bytes[idx].toInt() and 0xFF
             val hi = bytes[idx + 1].toInt() and 0xFF
-            leValues.add((hi shl 8) or lo)
-            beValues.add((lo shl 8) or hi)
-            exportedSamples.add(emitSample(receiveTimeMs, lo, hi))
+            val raw = (hi shl 8) or lo
+            // Skip saturated samples (0 or 4095 for 12-bit ADC)
+            if (raw != 0 && raw != 4095) {
+                leValues.add(raw)
+                beValues.add((lo shl 8) or hi)
+                exportedSamples.add(emitSample(receiveTimeMs, lo, hi))
+            }
             idx += 2
         }
         if (idx < bytes.size) {
@@ -372,10 +385,21 @@ class BleClient(
         }
         dataExporter.appendSamples(exportedSamples)
         _exportFileName.value = dataExporter.currentFileName()
-
-        if (leValues.isNotEmpty()) {
+        val hasValidSamples = leValues.isNotEmpty()
+        if (hasValidSamples) {
+            val preview = buildPreview(bytes, bytes.size)
+            _rawText.value = appendPreview(_rawText.value, preview, 2048)
+            val hex = buildHex(bytes, bytes.size)
+            dataExporter.appendRawPacket(receiveTimeMs, hex, bytes.size)
+            val line = "RX(${bytes.size}): $hex\n"
+            _rawHex.value = appendPreview(_rawHex.value, line, 4096)
+            Log.d(logTag, "RX(${bytes.size}): $hex")
             val preview16 = build16Preview(leValues, beValues, 24)
             _raw16Preview.value = appendPreview(_raw16Preview.value, preview16, 2048)
+            _rawBytes.value = _rawBytes.value + bytes.size
+            _lastRxMs.value = System.currentTimeMillis()
+        } else {
+            // Entire packet is saturated (0/4095) — skip counter/hex/preview updates
         }
     }
 
@@ -479,3 +503,7 @@ class BleClient(
             UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
 }
+
+
+
+
