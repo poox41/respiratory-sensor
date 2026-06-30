@@ -16,7 +16,7 @@ class PeakRateEstimator(
         values.add(tMs, v)
     }
 
-    fun estimate(): Float? {
+   fun estimate(): Float? {
         val (_, vs) = values.snapshot()
         val n = vs.size
         if (n < fsHz) return null
@@ -24,6 +24,12 @@ class PeakRateEstimator(
         var mean = 0f
         for (x in vs) mean += x
         mean /= n
+
+        // Precompute Hann window
+        val hann = FloatArray(n) { i -> 0.5f * (1f - kotlin.math.cos(2.0 * Math.PI * i / (n - 1)).toFloat()) }
+        var winSumSq = 0f
+        for (w in hann) winSumSq += w * w
+        val winNorm = n / winSumSq  // normalization factor to compensate for window energy loss
 
         val minHz = max(0.1f, minBpm / 60f)
         val maxHz = max(minHz, maxBpm / 60f)
@@ -43,10 +49,10 @@ class PeakRateEstimator(
             for (i in 0 until n) {
                 val x = (vs[i] - mean).toDouble()
                 val ang = w * i
-                re += x * kotlin.math.cos(ang)
-                im -= x * kotlin.math.sin(ang)
+                re += x * hann[i] * kotlin.math.cos(ang)
+                im -= x * hann[i] * kotlin.math.sin(ang)
             }
-            val mag = re * re + im * im
+            val mag = (re * re + im * im) * winNorm
             if (mag > bestMag) {
                 bestMag = mag
                 bestK = k

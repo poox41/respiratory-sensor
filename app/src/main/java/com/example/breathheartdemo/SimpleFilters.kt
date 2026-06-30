@@ -27,3 +27,21 @@ class DualSmoother(windowSize: Int) {
     private val ma2 = MovingAverage(windowSize)
     fun next(x: Float): Float = ma2.next(ma1.next(x))
 }
+
+class HighPassFilter(private val alpha: Float) {
+    private var yPrev = 0f
+    private var xPrev = 0f
+
+    fun next(x: Float): Float {
+        // y[n] = alpha * (y[n-1] + x[n] - x[n-1])
+        val y = alpha * (yPrev + x - xPrev)
+        xPrev = x
+        yPrev = y
+        return y
+    }
+
+    fun clear() {
+        yPrev = 0f
+        xPrev = 0f
+    }
+}

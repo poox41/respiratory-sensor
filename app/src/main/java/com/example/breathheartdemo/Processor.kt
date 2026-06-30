@@ -5,14 +5,16 @@ import kotlinx.coroutines.flow.StateFlow
 // Split respiration and heart components, then estimate bpm and rpm.
 class Processor(private val fsHz: Int) {
     private val cap = fsHz * 330
-    val rawBuf = RingBuffer(cap)
-    val respBuf = RingBuffer(cap)
+   val rawBuf = RingBuffer(cap)
+    val preBuf = RingBuffer(cap)
+   val respBuf = RingBuffer(cap)
     val hrBuf = RingBuffer(cap)
 
     // Pre-filter (0.05~8 Hz): DC remove + 8 Hz LP
     private val preLP = MovingAverage(windowSize = 8)  // 8 samples (~160ms, ~6 Hz LP)
 
-    private val respLP = MovingAverage(windowSize = fsHz * 2)  // 100 samples (2s window)
+   private val respLP = MovingAverage(windowSize = fsHz * 2)  // 100 samples (2s window)
+    private val hrHPF = HighPassFilter(alpha = 0.964f)     // ~0.3 Hz cutoff, removes breathing residue
 
     private val minHrAmplitude = 0.01f  // minimum HR signal amplitude
     private var isHrValid = true  // set false when amplitude too low, blocks hrBuf writes
@@ -96,7 +98,7 @@ class Processor(private val fsHz: Int) {
     private val hrEstimator = PeakRateEstimator(
         fsHz = fsHz,
         refractoryMs = 250,
-        windowSec = 10,
+        windowSec = 20,
         minBpm = 40f,
         maxBpm = 180f
     )
@@ -106,7 +108,7 @@ class Processor(private val fsHz: Int) {
 
     // DC removal: slow exponential-moving-average
     private var dcOffset = 0f
-    private val dcAlpha = 0.995f // ~4 s time constant at 50 Hz
+    private val dcAlpha = 0.9995f // ~40 s time constant at 50 Hz
    var sensorLogger: SensorDataLogger? = null
    // Rolling buffers for live preview (raw vs centered)
     private val recentRaw = IntArray(16)
@@ -124,17 +126,19 @@ class Processor(private val fsHz: Int) {
     private var lastHrEstimateMs = 0L
    private var lastRespEstimateMs = 0L
     private var lastBpmEstimate: Float? = null
-    private var lastRpmEstimate: Float? = null
+   private var lastRpmEstimate: Float? = null
+    private var lastValidAdc = 0f
 
     fun onSample(sample: Sample) {
         val t = sample.tMs
         val rawX = sample.x
+        val validatedRawX = if (rawX <= 0.5f || rawX >= 4094.5f) lastValidAdc else rawX.also { lastValidAdc = it }
 
 
         // ---------- DC removal ----------
 
-        dcOffset = dcOffset * dcAlpha + rawX * (1f - dcAlpha)
-        val x = rawX - dcOffset // centered around 0
+        dcOffset = dcOffset * dcAlpha + validatedRawX * (1f - dcAlpha)
+        val x = validatedRawX - dcOffset // centered around 0
         
         val xF = preLP.next(x)  // 8 Hz low-pass pre-filter
         sensorLogger?.log(t, rawX, x, xF)
@@ -177,11 +181,12 @@ class Processor(private val fsHz: Int) {
         val resp = respLP.next(xF)
 
         // --- Heart rate: subtract respiration, split into calc + display ---
-        val hrRaw = xF - resp
+        val hrRaw = hrHPF.next(xF)
         val hr = hrCalc.next(hrRaw)              // calculation channel (light MA, 10 samples)
         val hrDisplay = hrDisplaySmooth.next(hrRaw)  // display channel (DualSmoother, 12+12 samples)
 
-        rawBuf.add(t, xF)       // pre-filtered signal
+        rawBuf.add(t, validatedRawX)  // raw ADC waveform
+        preBuf.add(t, xF)       // pre-filtered signal
         respBuf.add(t, resp)    // respiration waveform
         val normHr = normalizeForDisplay(hrDisplay)
         hrBuf.add(t, normHr)    // heart rate waveform (-1~1)
@@ -191,7 +196,7 @@ class Processor(private val fsHz: Int) {
             respEstimator.add(t, resp)
 
             // Threshold-based peak detection on normalized HR (-1 to 1)
-            if (normHr > 0.3f && !peakRising && (t - lastPeakT) > 300L) {
+            if (normHr > 0.3f && !peakRising && (t - lastPeakT) > 350L) {
                 peakRising = true
                 lastPeakT = t
                 peakTimesList.add(t)
@@ -218,9 +223,9 @@ class Processor(private val fsHz: Int) {
 
         // ---- Vital signs: slow-decay BPM/RPM validation ----
         // BPM from DFT estimator (PeakRateEstimator), every 1s
-       if (t - lastHrEstimateMs >= 1000L) {
+      if (t - lastHrEstimateMs >= 1000L) {
            lastHrEstimateMs = t
-           nextBpm = hrRateSmoother.update(hrEstimator.estimate())
+            nextBpm = hrRateSmoother.update(hrEstimator.estimate())
        }
 
         if (t - lastRespEstimateMs >= 2000L) {
@@ -254,8 +259,9 @@ class Processor(private val fsHz: Int) {
         lastRpmEstimate = nextRpm
     }
     fun reset() {
-        rawBuf.clear()
-        respBuf.clear()
+       rawBuf.clear()
+        preBuf.clear()
+       respBuf.clear()
         hrBuf.clear()
         dcOffset = 0f
         isHrValid = false
@@ -269,8 +275,9 @@ class Processor(private val fsHz: Int) {
         respEstimator.clear()
         hrRateSmoother.clear()
         respRateSmoother.clear()
-        respRateGate.clear()
-        lastHrEstimateMs = 0L
+       respRateGate.clear()
+        hrHPF.clear()
+       lastHrEstimateMs = 0L
        lastRespEstimateMs = 0L
         _rates.value = Rates()
         lastBpmEstimate = null
