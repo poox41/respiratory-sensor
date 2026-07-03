@@ -103,6 +103,8 @@ class BleClient(
         _rawBytes.value = 0L
     }
 
+    private var lastHexUpdateMs = 0L
+
     private val scanCallback = object : ScanCallback() {
         @RequiresPermission(Manifest.permission.BLUETOOTH_CONNECT)
         override fun onScanResult(callbackType: Int, result: ScanResult) {
@@ -388,14 +390,18 @@ class BleClient(
         val hasValidSamples = leValues.isNotEmpty()
         if (hasValidSamples) {
             val preview = buildPreview(bytes, bytes.size)
-            _rawText.value = appendPreview(_rawText.value, preview, 2048)
             val hex = buildHex(bytes, bytes.size)
-            dataExporter.appendRawPacket(receiveTimeMs, hex, bytes.size)
             val line = "RX(${bytes.size}): $hex\n"
-            _rawHex.value = appendPreview(_rawHex.value, line, 4096)
+            val now = System.currentTimeMillis()
+            if (now - lastHexUpdateMs > 200) {
+                _rawText.value = appendPreview(_rawText.value, preview, 2048)
+                _rawHex.value = appendPreview(_rawHex.value, line, 4096)
+                lastHexUpdateMs = now
+            }
+            dataExporter.appendRawPacket(receiveTimeMs, hex, bytes.size)
             Log.d(logTag, "RX(${bytes.size}): $hex")
-            val preview16 = build16Preview(leValues, beValues, 24)
-            _raw16Preview.value = appendPreview(_raw16Preview.value, preview16, 2048)
+            // val preview16 = build16Preview(leValues, beValues, 24)
+            // _raw16Preview.value = appendPreview(_raw16Preview.value, preview16, 2048)
             _rawBytes.value = _rawBytes.value + bytes.size
             _lastRxMs.value = System.currentTimeMillis()
         } else {

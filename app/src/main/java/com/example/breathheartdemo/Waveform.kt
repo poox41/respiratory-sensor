@@ -103,9 +103,18 @@ fun Waveform(
             val tMax = ts[vs.lastIndex]
             val tMin = tMax - windowMs
 
-            for (i in vs.indices) {
+            // Binary search for first visible sample
+            var lo = 0
+            var hi = vs.size - 1
+            while (lo < hi) {
+                val mid = (lo + hi) / 2
+                if (ts[mid] < tMin) lo = mid + 1
+                else hi = mid
+            }
+            if (ts[lo] < tMin) return@Canvas
+
+            for (i in lo until vs.size) {
                 val t = ts[i]
-                if (t < tMin) continue
                 val xNorm = (t - tMin).toFloat() / windowMs.toFloat()
                 val x = xNorm.coerceIn(0f, 1f) * w
                 if (x - lastX < minStepPx) continue

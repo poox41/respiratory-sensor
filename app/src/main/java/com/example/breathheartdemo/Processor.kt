@@ -6,9 +6,10 @@ import kotlinx.coroutines.flow.StateFlow
 class Processor(private val fsHz: Int) {
     private val cap = fsHz * 330
    val rawBuf = RingBuffer(cap)
-    val preBuf = RingBuffer(cap)
-   val respBuf = RingBuffer(cap)
-    val hrBuf = RingBuffer(cap)
+   val preBuf = RingBuffer(cap)
+  val respBuf = RingBuffer(cap)
+    val respDisplayBuf = RingBuffer(cap)
+   val hrBuf = RingBuffer(cap)
 
     // Pre-filter (0.05~8 Hz): DC remove + 8 Hz LP
     private val preLP = MovingAverage(windowSize = 8)  // 8 samples (~160ms, ~6 Hz LP)
@@ -28,6 +29,12 @@ class Processor(private val fsHz: Int) {
     private val normHistory = FloatArray(NORM_WINDOW)
     private var normIdx = 0
     private var normCount = 0
+    // Respiration display normalization: 10s window, EMA p2p smoothing (α=0.08)
+    private val RESP_NORM_WINDOW = fsHz * 10
+    private val respNormHistory = FloatArray(RESP_NORM_WINDOW)
+    private var respNormIdx = 0
+    private var respNormCount = 0
+    private var smoothRespP2P = 0f
 
     private fun normalizeForDisplay(value: Float): Float {
         normHistory[normIdx] = value
@@ -43,6 +50,26 @@ class Processor(private val fsHz: Int) {
         }
        val range = maxV - minV
         return (if (range > 1e-6f) ((value - minV) / range) * 2f - 1f else 0f).coerceIn(-1f, 1f)
+    }
+    private fun normalizeRespForDisplay(value: Float): Float {
+        respNormHistory[respNormIdx] = value
+        respNormIdx = (respNormIdx + 1) % RESP_NORM_WINDOW
+        if (respNormCount < RESP_NORM_WINDOW) respNormCount++
+
+        var minV = Float.MAX_VALUE
+        var maxV = Float.MIN_VALUE
+        for (i in 0 until respNormCount) {
+            val v = respNormHistory[i]
+            if (v < minV) minV = v
+            if (v > maxV) maxV = v
+        }
+        val rawP2P = maxV - minV
+        if (smoothRespP2P == 0f) smoothRespP2P = rawP2P
+        else smoothRespP2P += (rawP2P - smoothRespP2P) * 0.08f
+
+        return if (smoothRespP2P > 1e-6f) {
+            ((value - minV) / smoothRespP2P * 2f - 1f).coerceIn(-1f, 1f)
+        } else 0f
     }
 //    private val hrEstimator = PeakRateEstimator(
 //        fsHz = fsHz,
@@ -108,7 +135,11 @@ class Processor(private val fsHz: Int) {
 
     // DC removal: slow exponential-moving-average
     private var dcOffset = 0f
-    private val dcAlpha = 0.9995f // ~40 s time constant at 50 Hz
+    private val dcAlpha = 0.999f // ~20 s time constant at 50 Hz
+    private var sampleCount = 0L
+    private var noSignalCount = 0
+    private var signalRecoveryCount = 0
+    private val initialBaseline = MovingAverage(windowSize = fsHz * 2)  // 100 samples, 2s window
    var sensorLogger: SensorDataLogger? = null
    // Rolling buffers for live preview (raw vs centered)
     private val recentRaw = IntArray(16)
@@ -132,32 +163,31 @@ class Processor(private val fsHz: Int) {
     fun onSample(sample: Sample) {
         val t = sample.tMs
         val rawX = sample.x
-        val validatedRawX = if (rawX <= 0.5f || rawX >= 4094.5f) lastValidAdc else rawX.also { lastValidAdc = it }
+        // val validatedRawX = if (rawX == 0f || rawX >= 4094.5f) lastValidAdc else rawX.also { lastValidAdc = it }
+        val validatedRawX = rawX
 
 
         // ---------- DC removal ----------
 
-        dcOffset = dcOffset * dcAlpha + validatedRawX * (1f - dcAlpha)
+        sampleCount++
+        if (sampleCount <= fsHz * 20) {
+            dcOffset = initialBaseline.next(validatedRawX)    // 2s MA baseline (startup)
+        } else {
+            dcOffset = dcOffset * dcAlpha + validatedRawX * (1f - dcAlpha)  // 40s EMA (steady state)
+        }
         val x = validatedRawX - dcOffset // centered around 0
+        if (x in -100f..100f) {
+            noSignalCount++
+            signalRecoveryCount = 0
+        } else {
+            signalRecoveryCount++
+            if (signalRecoveryCount >= 20) {
+                noSignalCount = 0
+            }
+        }
         
         val xF = preLP.next(x)  // 8 Hz low-pass pre-filter
         sensorLogger?.log(t, rawX, x, xF)
-        val diff = kotlin.math.abs(x - prevX)
-        prevX = x
-        if (motionHist[motionHistIdx]) motionExceed--
-        motionHist[motionHistIdx] = diff > motionThreshold
-        if (motionHist[motionHistIdx]) motionExceed++
-        motionHistIdx = (motionHistIdx + 1) % motionWindow
-        if (motionHistCount < motionWindow) motionHistCount++
-        val ratio = if (motionHistCount > 0) motionExceed.toFloat() / motionHistCount else 0f
-        if (ratio > 0.3f) {
-            lastMotionMs = t
-            signalState = SignalState.MOTION
-            _signalQuality.value = SignalState.MOTION
-        } else if (t - lastMotionMs > 3000L && signalState != SignalState.MEASURING) {
-            signalState = SignalState.MEASURING
-            _signalQuality.value = SignalState.MEASURING
-        }
 
         // Track raw and centered values for the live preview
         recentRaw[rawIdx] = rawX.toInt()
@@ -185,13 +215,15 @@ class Processor(private val fsHz: Int) {
         val hr = hrCalc.next(hrRaw)              // calculation channel (light MA, 10 samples)
         val hrDisplay = hrDisplaySmooth.next(hrRaw)  // display channel (DualSmoother, 12+12 samples)
 
-        rawBuf.add(t, validatedRawX)  // raw ADC waveform
-        preBuf.add(t, xF)       // pre-filtered signal
-        respBuf.add(t, resp)    // respiration waveform
         val normHr = normalizeForDisplay(hrDisplay)
-        hrBuf.add(t, normHr)    // heart rate waveform (-1~1)
+        val signalActive = noSignalCount < fsHz * 10
+        rawBuf.add(t, if (signalActive) x else 0f)  // DC-removed ADC waveform
+        preBuf.add(t, if (signalActive) xF else 0f)       // pre-filtered signal
+        respBuf.add(t, if (signalActive) resp else 0f)    // respiration waveform
+        respDisplayBuf.add(t, if (signalActive) normalizeRespForDisplay(resp) else 0f)  // normalized for display
+        hrBuf.add(t, if (signalActive) normHr else 0f)    // heart rate waveform (-1~1)
 
-        if (signalState == SignalState.MEASURING) {
+        if (signalState == SignalState.MEASURING && signalActive) {
             hrEstimator.add(t, hr)
             respEstimator.add(t, resp)
 
@@ -262,10 +294,16 @@ class Processor(private val fsHz: Int) {
        rawBuf.clear()
         preBuf.clear()
        respBuf.clear()
+        respDisplayBuf.clear()
         hrBuf.clear()
         dcOffset = 0f
+        sampleCount = 0
+        noSignalCount = 0
+        signalRecoveryCount = 0
+        initialBaseline.clear()
         isHrValid = false
         normIdx = 0; normCount = 0
+        respNormIdx = 0; respNormCount = 0; smoothRespP2P = 0f
         rawIdx = 0; rawCount = 0
         centeredIdx = 0; centeredCount = 0
         _rawPreview.value = ""

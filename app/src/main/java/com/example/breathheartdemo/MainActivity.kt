@@ -73,8 +73,8 @@ fun AppScreen() {
     val effectiveRawGain = rememberAutoGain(
         buffer = processor.rawBuf,
         windowMs = effectiveRawWindowMs,
-        yMin = -32768f,
-        yMax = 32767f,
+        yMin = -2000f,
+        yMax = 2000f,
         autoEnabled = autoRawGain,
         manualGain = rawGain
     )
@@ -172,9 +172,6 @@ fun AppScreen() {
             processor.reset()
         }
         lastConnectionState = connectionState
-    }
-    LaunchedEffect(rawHex) {
-        previewScroll.scrollTo(previewScroll.maxValue)
     }
 
     Scaffold(
@@ -319,79 +316,11 @@ fun AppScreen() {
                 }
             }
 
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = MaterialTheme.shapes.large
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(text = "Bluetooth Receive Preview", style = MaterialTheme.typography.titleMedium)
-                            OutlinedButton(onClick = { bleClient.clearPreview() }) {
-                                Text("Clear")
-                            }
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        Column(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(140.dp)
-                                .verticalScroll(previewScroll)
-                        ) {
-                        Text(
-                            text = "HEX: " + if (rawHex.isBlank()) "No data" else rawHex,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "RX total: $rawBytes",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (!exportSessionPath.isNullOrBlank()) {
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = "Export folder: $exportSessionPath",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (!exportFileName.isNullOrBlank()) {
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = "Current file: $exportFileName",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        Spacer(Modifier.height(6.dp))
-                        if (!connectionError.isNullOrBlank()) {
-                            Spacer(Modifier.height(6.dp))
-                            Text(
-                                text = "Connection error: $connectionError",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
-                            )
-                        }
-                    }
-                }
-            }
-            }
 
             item {
                 Card(shape = MaterialTheme.shapes.large) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(text = "数据值预览 (s16)", style = MaterialTheme.typography.titleMedium)
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "原始: " + if (raw16Preview.isBlank()) "等待数据..." else raw16Preview,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(Modifier.height(4.dp))
                         Text(
                             text = "原始s16: $rawPreview",
                             style = MaterialTheme.typography.bodySmall,
@@ -446,8 +375,8 @@ fun AppScreen() {
                         Waveform(
                             buffer = processor.rawBuf,
                             color = MaterialTheme.colorScheme.primary,
-                            yMin = -32768f,
-                            yMax = 32767f,
+                            yMin = -2000f,
+                            yMax = 2000f,
                             windowMs = effectiveRawWindowMs,
                             gain = effectiveRawGain,
                             showGrid = true,
@@ -552,10 +481,10 @@ fun AppScreen() {
             item {
                 ChartCard(title = stringResource(R.string.chart_resp)) {
                     Waveform(
-                        buffer = processor.respBuf,
+                        buffer = processor.respDisplayBuf,
                         color = MaterialTheme.colorScheme.tertiary,
-                        yMin = -2f,
-                        yMax = 2f,
+                        yMin = -1f,
+                        yMax = 1f,
                         showGrid = true,
                         showZeroLine = true
                     )
@@ -574,9 +503,9 @@ fun AppScreen() {
                             showGrid = true,
                             showZeroLine = true,
                             zeroLineValue = 0f,
-                            peakTimes = peakTimes
-                        )
-                        Spacer(Modifier.height(8.dp))
+                        peakTimes = peakTimes
+                    )
+                    Spacer(Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,

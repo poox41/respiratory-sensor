@@ -14,6 +14,12 @@ class MovingAverage(private val windowSize: Int) {
         if (filled < windowSize) filled++
         return sum / filled
     }
+    fun clear() {
+        buf.fill(0f)
+        sum = 0f
+        idx = 0
+        filled = 0
+    }
 }
 
 class ShortSmoother(windowSize: Int) {
