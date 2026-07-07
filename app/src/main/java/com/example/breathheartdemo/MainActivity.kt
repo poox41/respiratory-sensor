@@ -56,6 +56,8 @@ fun AppScreen() {
     var rawWindowMs by remember { mutableStateOf(6000L) }
     var autoHrGain by remember { mutableStateOf(false) }
     var hrGain by remember { mutableStateOf(1f) }
+    var autoRespGain by remember { mutableStateOf(true) }
+    var respGain by remember { mutableStateOf(1f) }
     val effectiveRawWindowMs = rememberAutoWindowMs(
         rates = rates,
         autoEnabled = autoRawWindow,
@@ -64,8 +66,8 @@ fun AppScreen() {
     val effectiveHrGain = rememberAutoGain(
         buffer = processor.hrBuf,
         windowMs = 6000L,
-        yMin = -1f,
-        yMax = 1f,
+        yMin = -2000f,
+        yMax = 2000f,
         autoEnabled = autoHrGain,
         manualGain = hrGain
     )
@@ -77,6 +79,14 @@ fun AppScreen() {
         yMax = 2000f,
         autoEnabled = autoRawGain,
         manualGain = rawGain
+    )
+    val effectiveRespGain = rememberAutoGain(
+        buffer = processor.respDisplayBuf,
+        windowMs = 10000L,
+        yMin = -2000f,
+        yMax = 2000f,
+        autoEnabled = autoRespGain,
+        manualGain = respGain
     )
 
     val bleClient = remember { BleClient(context.applicationContext, fsHz) }
@@ -480,14 +490,56 @@ fun AppScreen() {
 
             item {
                 ChartCard(title = stringResource(R.string.chart_resp)) {
-                    Waveform(
-                        buffer = processor.respDisplayBuf,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        yMin = -1f,
-                        yMax = 1f,
-                        showGrid = true,
-                        showZeroLine = true
-                    )
+                    Column {
+                        Waveform(
+                            buffer = processor.respDisplayBuf,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            yMin = -2000f,
+                            yMax = 2000f,
+                            windowMs = 10000L,
+                            gain = effectiveRespGain,
+                            showGrid = true,
+                            showZeroLine = true
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(text = "Auto Gain", style = MaterialTheme.typography.bodyMedium)
+                            Switch(checked = autoRespGain, onCheckedChange = { autoRespGain = it })
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (autoRespGain) {
+                                    "Gain Auto (x" + String.format("%.1f", effectiveRespGain) + ")"
+                                } else {
+                                    "Gain x" + String.format("%.1f", respGain)
+                                },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlinedButton(
+                                    onClick = { respGain = (respGain / 1.2f).coerceIn(0.1f, 200f) },
+                                    enabled = !autoRespGain
+                                ) { Text("-") }
+                                OutlinedButton(
+                                    onClick = { respGain = 1f },
+                                    enabled = !autoRespGain
+                                ) { Text("Reset") }
+                                Button(
+                                    onClick = { respGain = (respGain * 1.2f).coerceIn(0.1f, 200f) },
+                                    enabled = !autoRespGain
+                                ) { Text("+ ") }
+                            }
+                        }
+                    }
                 }
             }
 
@@ -497,9 +549,10 @@ fun AppScreen() {
                         Waveform(
                             buffer = processor.hrBuf,
                             color = MaterialTheme.colorScheme.error,
-                            yMin = -1f,
-                            yMax = 1f,
-                            gain = effectiveHrGain,
+                            yMin = -2000f,
+                        yMax = 2000f,
+                        windowMs = 10000L,
+                        gain = effectiveHrGain,
                             showGrid = true,
                             showZeroLine = true,
                             zeroLineValue = 0f,

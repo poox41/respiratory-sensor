@@ -29,12 +29,15 @@ class Processor(private val fsHz: Int) {
     private val normHistory = FloatArray(NORM_WINDOW)
     private var normIdx = 0
     private var normCount = 0
+    private var smoothHrCenter = 0f
+    private var smoothHrP2P = 0f
     // Respiration display normalization: 10s window, EMA p2p smoothing (α=0.08)
     private val RESP_NORM_WINDOW = fsHz * 10
     private val respNormHistory = FloatArray(RESP_NORM_WINDOW)
     private var respNormIdx = 0
     private var respNormCount = 0
     private var smoothRespP2P = 0f
+    private var smoothRespCenter = 0f
 
     private fun normalizeForDisplay(value: Float): Float {
         normHistory[normIdx] = value
@@ -48,8 +51,22 @@ class Processor(private val fsHz: Int) {
             if (v < minV) minV = v
             if (v > maxV) maxV = v
         }
-       val range = maxV - minV
-        return (if (range > 1e-6f) ((value - minV) / range) * 2f - 1f else 0f).coerceIn(-1f, 1f)
+        val center = (minV + maxV) / 2f
+        val rawP2P = maxV - minV
+        // EMA smooth center (α=0.05)
+        if (normCount == 1) smoothHrCenter = center
+        else smoothHrCenter += (center - smoothHrCenter) * 0.05f
+        // P2P: rise immediately, fall slowly (α=0.08)
+        if (smoothHrP2P == 0f || rawP2P > smoothHrP2P) {
+            smoothHrP2P = rawP2P
+        } else {
+            smoothHrP2P += (rawP2P - smoothHrP2P) * 0.08f
+        }
+        val displayP2P = smoothHrP2P.coerceIn(30f, 200f)
+        val halfP2P = displayP2P / 2f
+        return if (halfP2P > 1e-6f) {
+            ((value - smoothHrCenter) / halfP2P).coerceIn(-1f, 1f)
+        } else 0f
     }
     private fun normalizeRespForDisplay(value: Float): Float {
         respNormHistory[respNormIdx] = value
@@ -64,11 +81,20 @@ class Processor(private val fsHz: Int) {
             if (v > maxV) maxV = v
         }
         val rawP2P = maxV - minV
-        if (smoothRespP2P == 0f) smoothRespP2P = rawP2P
-        else smoothRespP2P += (rawP2P - smoothRespP2P) * 0.08f
+        val center = (minV + maxV) / 2f
+        if (respNormCount == 1) smoothRespCenter = center
+        else smoothRespCenter += (center - smoothRespCenter) * 0.08f
 
-        return if (smoothRespP2P > 1e-6f) {
-            ((value - minV) / smoothRespP2P * 2f - 1f).coerceIn(-1f, 1f)
+        if (smoothRespP2P == 0f || rawP2P > smoothRespP2P) {
+            smoothRespP2P = rawP2P   // 上升立即跟随，避免削顶
+        } else {
+            smoothRespP2P += (rawP2P - smoothRespP2P) * 0.08f  // 下降缓慢衰减
+        }
+        val displayP2P = smoothRespP2P.coerceIn(80f, 3000f)
+        val halfP2P = displayP2P / 2f
+
+        return if (halfP2P > 1e-6f) {
+            ((value - smoothRespCenter) / halfP2P).coerceIn(-1f, 1f)
         } else 0f
     }
 //    private val hrEstimator = PeakRateEstimator(
@@ -187,7 +213,6 @@ class Processor(private val fsHz: Int) {
         }
         
         val xF = preLP.next(x)  // 8 Hz low-pass pre-filter
-        sensorLogger?.log(t, rawX, x, xF)
 
         // Track raw and centered values for the live preview
         recentRaw[rawIdx] = rawX.toInt()
@@ -215,13 +240,14 @@ class Processor(private val fsHz: Int) {
         val hr = hrCalc.next(hrRaw)              // calculation channel (light MA, 10 samples)
         val hrDisplay = hrDisplaySmooth.next(hrRaw)  // display channel (DualSmoother, 12+12 samples)
 
-        val normHr = normalizeForDisplay(hrDisplay)
+        val normHr = normalizeForDisplay(hrDisplay)  // 用于峰值检测，不写入缓冲区
+        sensorLogger?.log(t, rawX, x, xF, resp, hr, 0f)  // normHr列占位
         val signalActive = noSignalCount < fsHz * 10
         rawBuf.add(t, if (signalActive) x else 0f)  // DC-removed ADC waveform
         preBuf.add(t, if (signalActive) xF else 0f)       // pre-filtered signal
         respBuf.add(t, if (signalActive) resp else 0f)    // respiration waveform
-        respDisplayBuf.add(t, if (signalActive) normalizeRespForDisplay(resp) else 0f)  // normalized for display
-        hrBuf.add(t, if (signalActive) normHr else 0f)    // heart rate waveform (-1~1)
+        respDisplayBuf.add(t, if (signalActive) resp else 0f)  // 原始呼吸信号，无归一化
+        hrBuf.add(t, if (signalActive) hrDisplay else 0f)    // 原始心率信号，无归一化
 
         if (signalState == SignalState.MEASURING && signalActive) {
             hrEstimator.add(t, hr)
@@ -303,7 +329,8 @@ class Processor(private val fsHz: Int) {
         initialBaseline.clear()
         isHrValid = false
         normIdx = 0; normCount = 0
-        respNormIdx = 0; respNormCount = 0; smoothRespP2P = 0f
+        smoothHrCenter = 0f; smoothHrP2P = 0f
+        respNormIdx = 0; respNormCount = 0; smoothRespP2P = 0f; smoothRespCenter = 0f
         rawIdx = 0; rawCount = 0
         centeredIdx = 0; centeredCount = 0
         _rawPreview.value = ""

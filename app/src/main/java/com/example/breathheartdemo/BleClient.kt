@@ -342,16 +342,6 @@ class BleClient(
     private fun handleIncoming(bytes: ByteArray) {
         if (bytes.isEmpty()) return
         val receiveTimeMs = System.currentTimeMillis()
-
-
-
-
-
-
-
-
-
-
         ensureSampleClock()
         var idx = 0
         val firstPending = pendingByte
@@ -362,11 +352,9 @@ class BleClient(
             val lo = firstPending
             val hi = bytes[0].toInt() and 0xFF
             val raw = (hi shl 8) or lo
-            if (raw != 0 && raw != 4095) {
                 leValues.add(raw)
                 beValues.add((lo shl 8) or hi)
                 exportedSamples.add(emitSample(receiveTimeMs, lo, hi))
-            }
             idx = 1
             pendingByte = null
         }
@@ -374,12 +362,9 @@ class BleClient(
             val lo = bytes[idx].toInt() and 0xFF
             val hi = bytes[idx + 1].toInt() and 0xFF
             val raw = (hi shl 8) or lo
-            // Skip saturated samples (0 or 4095 for 12-bit ADC)
-            if (raw != 0 && raw != 4095) {
                 leValues.add(raw)
                 beValues.add((lo shl 8) or hi)
                 exportedSamples.add(emitSample(receiveTimeMs, lo, hi))
-            }
             idx += 2
         }
         if (idx < bytes.size) {

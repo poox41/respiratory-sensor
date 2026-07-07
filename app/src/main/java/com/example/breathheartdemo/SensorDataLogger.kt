@@ -26,13 +26,13 @@ class SensorDataLogger(private val context: Context) {
         val fileName = "sensor_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.csv"
         logFile = File(dir, fileName)
         writer = BufferedWriter(FileWriter(logFile!!, true))
-        writer?.write("time_ms,time_str,rawX,x,xF")
+        writer?.write("time_ms,time_str,rawX,x,xF,resp,hr,normHr")
         writer?.newLine()
         isLogging = true
         return logFile
     }
 
-    fun log(tMs: Long, rawX: Float, x: Float, xF: Float) {
+    fun log(tMs: Long, rawX: Float, x: Float, xF: Float, resp: Float, hr: Float, normHr: Float) {
         if (!isLogging || writer == null) return
         try {
             writer?.apply {
@@ -40,7 +40,10 @@ class SensorDataLogger(private val context: Context) {
                 write(dateFormat.format(Date(tMs))); write(",")
                 write(rawX.toString()); write(",")
                 write(x.toString()); write(",")
-                write(xF.toString())
+                write(xF.toString()); write(",")
+                write(resp.toString()); write(",")
+                write(hr.toString()); write(",")
+                write(normHr.toString())
                 newLine()
             }
         } catch (_: Exception) {
