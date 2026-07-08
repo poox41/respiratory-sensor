@@ -13,9 +13,12 @@ class Processor(private val fsHz: Int) {
 
     // Pre-filter (0.05~8 Hz): DC remove + 8 Hz LP
     private val preLP = MovingAverage(windowSize = 8)  // 8 samples (~160ms, ~6 Hz LP)
+    private val notch50Hz = NotchFilter(freqHz = 50f, sampleRate = fsHz, q = 30f)  // 50Hz工频陷波
+    private val antiAliasLPF = LowPassFilter(cutoffHz = 5f, sampleRate = fsHz)  // 5Hz低通抗混叠
 
-   private val respLP = MovingAverage(windowSize = fsHz * 2)  // 100 samples (2s window)
+    private val respFIR = FIRFilter(order = 633, cutoffHz = 0.5f, sampleRate = fsHz)  // 633阶FIR低通
     private val hrHPF = HighPassFilter(alpha = 0.964f)     // ~0.3 Hz cutoff, removes breathing residue
+    private val hrHPF2 = HighPassFilter(alpha = 0.964f)    // 二级级联
 
     private val minHrAmplitude = 0.01f  // minimum HR signal amplitude
     private var isHrValid = true  // set false when amplitude too low, blocks hrBuf writes
@@ -158,6 +161,13 @@ class Processor(private val fsHz: Int) {
     private var lastValidBpm: Float? = null
     private var peakRising = false
     private var lastPeakT = 0L
+    private val motionAbsBuf = RingBuffer(fsHz * 2)
+    private var motionFlag = false
+    private var motionEndTime = 0L
+    private val breathDetector = BreathingRateDetector()
+    private val heartSep = DifferentialHeartSeparator()
+    private val hrPeakDetector = DualPeakDetector(threshold = 41f)
+    private var lastPeakBpm: Float? = null
 
     // DC removal: slow exponential-moving-average
     private var dcOffset = 0f
@@ -193,15 +203,20 @@ class Processor(private val fsHz: Int) {
         val validatedRawX = rawX
 
 
-        // ---------- DC removal ----------
-
-        sampleCount++
-        if (sampleCount <= fsHz * 20) {
-            dcOffset = initialBaseline.next(validatedRawX)    // 2s MA baseline (startup)
-        } else {
-            dcOffset = dcOffset * dcAlpha + validatedRawX * (1f - dcAlpha)  // 40s EMA (steady state)
+        // 固定去直流：2048 = 0V（12位ADC中点）
+        val x = validatedRawX - 2600f
+        motionAbsBuf.add(t, kotlin.math.abs(x))
+        if (!motionFlag) {
+            val (_, absVs) = motionAbsBuf.snapshot()
+            val minT = t - 1000L; var peakAbs = 0f
+            for (i in absVs.indices) { if (absVs[i] >= minT && absVs[i] > peakAbs) peakAbs = absVs[i] }
+            if (peakAbs > 1638f) { motionFlag = true; motionEndTime = t + 15000L }
+        } else if (t >= motionEndTime) {
+            val (_, absVs) = motionAbsBuf.snapshot()
+            val minT = t - 2000L; var stablePeak = 0f
+            for (i in absVs.indices) { if (absVs[i] >= minT && absVs[i] > stablePeak) stablePeak = absVs[i] }
+            if (stablePeak < 819f) motionFlag = false
         }
-        val x = validatedRawX - dcOffset // centered around 0
         if (x in -100f..100f) {
             noSignalCount++
             signalRecoveryCount = 0
@@ -212,7 +227,9 @@ class Processor(private val fsHz: Int) {
             }
         }
         
-        val xF = preLP.next(x)  // 8 Hz low-pass pre-filter
+        val xNotch = notch50Hz.next(x)          // 50Hz工频陷波
+        val xClean = antiAliasLPF.next(xNotch)  // 5Hz低通抗混叠
+        val xF = xClean  // 跳过 preLP，直接使用5Hz低通输出
 
         // Track raw and centered values for the live preview
         recentRaw[rawIdx] = rawX.toInt()
@@ -233,15 +250,15 @@ class Processor(private val fsHz: Int) {
         }
 
         // --- Respiration: extract via long MA (retain 0.1~0.5 Hz) ---
-        val resp = respLP.next(xF)
+        val resp = respFIR.next(xF)
 
         // --- Heart rate: subtract respiration, split into calc + display ---
-        val hrRaw = hrHPF.next(xF)
+        val hrRaw = heartSep.next(xF)
         val hr = hrCalc.next(hrRaw)              // calculation channel (light MA, 10 samples)
         val hrDisplay = hrDisplaySmooth.next(hrRaw)  // display channel (DualSmoother, 12+12 samples)
 
         val normHr = normalizeForDisplay(hrDisplay)  // 用于峰值检测，不写入缓冲区
-        sensorLogger?.log(t, rawX, x, xF, resp, hr, 0f)  // normHr列占位
+        sensorLogger?.log(t, rawX, x, xF, resp, hr, normHr)  // normHr列
         val signalActive = noSignalCount < fsHz * 10
         rawBuf.add(t, if (signalActive) x else 0f)  // DC-removed ADC waveform
         preBuf.add(t, if (signalActive) xF else 0f)       // pre-filtered signal
@@ -249,9 +266,10 @@ class Processor(private val fsHz: Int) {
         respDisplayBuf.add(t, if (signalActive) resp else 0f)  // 原始呼吸信号，无归一化
         hrBuf.add(t, if (signalActive) hrDisplay else 0f)    // 原始心率信号，无归一化
 
-        if (signalState == SignalState.MEASURING && signalActive) {
-            hrEstimator.add(t, hr)
-            respEstimator.add(t, resp)
+        if (signalState == SignalState.MEASURING && signalActive && !motionFlag) {
+            // Dual peak detection on heartSep output (firstPeak + envelope + secondPeak → AO → BPM)
+            val peakBpm = hrPeakDetector.next(hrRaw, t)
+            if (peakBpm != null) lastPeakBpm = peakBpm
 
             // Threshold-based peak detection on normalized HR (-1 to 1)
             if (normHr > 0.3f && !peakRising && (t - lastPeakT) > 350L) {
@@ -280,24 +298,22 @@ class Processor(private val fsHz: Int) {
 
 
         // ---- Vital signs: slow-decay BPM/RPM validation ----
-        // BPM from DFT estimator (PeakRateEstimator), every 1s
-      if (t - lastHrEstimateMs >= 1000L) {
-           lastHrEstimateMs = t
-            nextBpm = hrRateSmoother.update(hrEstimator.estimate())
-       }
+        // BPM from peak detector (replaces DFT)
+        if (t - lastHrEstimateMs >= 1000L) {
+            lastHrEstimateMs = t
+            nextBpm = hrRateSmoother.update(lastPeakBpm)
+        }
 
-        if (t - lastRespEstimateMs >= 2000L) {
-            lastRespEstimateMs = t
-            val rawRespRate = respEstimator.estimate()
+        val newRpm = breathDetector.next(resp, t)
+        if (newRpm != null) {
             val respAmplitude = measureRecentAmplitude(windowSec = 12)
-            val gatedRespRate = respRateGate.filter(
-                nowMs = t,
-                rawRate = rawRespRate,
+            val gatedRpm = respRateGate.filter(
+                nowMs = t, rawRate = newRpm,
                 signalAmplitude = respAmplitude,
                 hasEnoughWaveform = respBufHasEnoughData(windowSec = 10),
                 currentDisplayed = _rates.value.rpm
             )
-            nextRpm = respRateSmoother.update(gatedRespRate)
+            nextRpm = respRateSmoother.update(gatedRpm)
         }
 
         val bpmValid = nextBpm != null && nextBpm >= 40f && nextBpm <= 180f
@@ -342,7 +358,13 @@ class Processor(private val fsHz: Int) {
         respRateSmoother.clear()
        respRateGate.clear()
         hrHPF.clear()
-       lastHrEstimateMs = 0L
+        notch50Hz.clear()
+        antiAliasLPF.clear()
+        heartSep.clear()
+        hrPeakDetector.clear()
+        motionFlag = false; motionEndTime = 0L; motionAbsBuf.clear()
+        breathDetector.clear()
+        lastHrEstimateMs = 0L
        lastRespEstimateMs = 0L
         _rates.value = Rates()
         lastBpmEstimate = null

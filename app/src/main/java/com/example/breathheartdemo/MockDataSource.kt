@@ -1,4 +1,4 @@
-package com.example.breathheartdemo
+﻿package com.example.breathheartdemo
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -6,33 +6,27 @@ import kotlinx.coroutines.flow.flow
 import kotlin.math.PI
 import kotlin.math.sin
 import kotlin.random.Random
-// Simulated mixed-channel signal data.
+
 class MockDataSource(
-    private val fsHz: Int = 100,
-    private val startBpm: Float = 75f,
-    private val startRpm: Float = 15f
+    private val fsHz: Int = 50,
+    private val startBpm: Float = 72f,
+    private val startRpm: Float = 16f
 ) {
     fun samples(): Flow<Sample> = flow {
         val dtMs = (1000.0 / fsHz).toLong()
         val t0 = System.currentTimeMillis()
         var n = 0L
 
-        fun bpmAt(sec: Float) = startBpm
-        fun rpmAt(sec: Float) = startRpm
-
         while (true) {
             val tMs = t0 + n * dtMs
             val sec = (n.toFloat() / fsHz)
-
-            val bpm = bpmAt(sec)
-            val rpm = rpmAt(sec)
-
-            val fHr = bpm / 60f
-            val fResp = rpm / 60f
-
-            val resp = 1.0f * sin(2f * PI.toFloat() * fResp * sec)
-            val hr = 0.6f * sin(2f * PI.toFloat() * fHr * sec)
-            val x = resp + hr
+            val fHr = startBpm / 60f
+            val fResp = startRpm / 60f
+            // ADC: 2048=0V, breathing ~800pp, HR ~200pp
+            val x = 2048f +
+                800f * sin(2f * PI.toFloat() * fResp * sec) +
+                200f * sin(2f * PI.toFloat() * fHr * sec) +
+                Random.nextFloat() * 10f - 5f
 
             emit(Sample(tMs, x))
             n++

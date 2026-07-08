@@ -12,11 +12,20 @@ class PeakRateEstimator(
 ) {
     private val values = RingBuffer(fsHz * windowSec)
 
-    fun add(tMs: Long, v: Float) {
-        values.add(tMs, v)
-    }
+   fun add(tMs: Long, v: Float) {
+       values.add(tMs, v)
+   }
 
    fun estimate(): Float? {
+        val dftBpm = estimateDFT()
+        val acBpm = estimateAutoCorrelation()
+        if (dftBpm == null && acBpm == null) return null
+        if (dftBpm == null) return acBpm
+        if (acBpm == null) return dftBpm
+        return if (kotlin.math.abs(dftBpm - acBpm) < 10f) (dftBpm + acBpm) / 2f else dftBpm
+    }
+
+    private fun estimateDFT(): Float? {
         val (_, vs) = values.snapshot()
         val n = vs.size
         if (n < fsHz) return null
@@ -62,6 +71,33 @@ class PeakRateEstimator(
         if (bestK < 0) return null
         val freq = bestK.toFloat() * fsHz / n.toFloat()
         return freq * 60f
+    }
+
+    private fun estimateAutoCorrelation(): Float? {
+        val (_, vs) = values.snapshot()
+        val n = vs.size
+        if (n < fsHz) return null
+        var mean = 0f
+        for (x in vs) mean += x
+        mean /= n
+        val hann = FloatArray(n) { i -> 0.5f * (1f - kotlin.math.cos(2.0 * Math.PI * i / (n - 1)).toFloat()) }
+        val x = FloatArray(n) { (vs[it] - mean) * hann[it] }
+        val minLag = max(1, (fsHz * 60 / maxBpm).toInt())
+        val maxLag = min(n / 2, (fsHz * 60 / minBpm).toInt())
+        if (maxLag <= minLag) return null
+        var bestLag = -1
+        var bestCorr = 0.0
+        for (lag in minLag..maxLag) {
+            var corr = 0.0
+            for (i in 0 until n - lag) {
+                corr += (x[i] * x[i + lag]).toDouble()
+            }
+            corr /= (n - lag)
+            if (corr > bestCorr) { bestCorr = corr; bestLag = lag }
+        }
+        if (bestLag < 0) return null
+        val bpm = 60f * fsHz / bestLag
+        return if (bpm in minBpm..maxBpm) bpm else null
     }
 
     fun clear() {
