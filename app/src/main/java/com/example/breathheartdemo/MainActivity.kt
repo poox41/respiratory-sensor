@@ -66,8 +66,8 @@ fun AppScreen() {
     val effectiveHrGain = rememberAutoGain(
         buffer = processor.hrBuf,
         windowMs = 6000L,
-        yMin = -2000f,
-        yMax = 2000f,
+        yMin = -300f,
+        yMax = 300f,
         autoEnabled = autoHrGain,
         manualGain = hrGain
     )
@@ -549,8 +549,8 @@ fun AppScreen() {
                         Waveform(
                             buffer = processor.hrBuf,
                             color = MaterialTheme.colorScheme.error,
-                            yMin = -2000f,
-                        yMax = 2000f,
+                            yMin = -300f,
+                        yMax = 300f,
                         windowMs = 10000L,
                         gain = effectiveHrGain,
                             showGrid = true,
@@ -719,9 +719,12 @@ private fun rememberAutoGain(
 
                 if (minV != Float.POSITIVE_INFINITY && maxV != Float.NEGATIVE_INFINITY) {
                     val p2p = max(1f, maxV - minV)
+                    val maxExtent = maxOf(kotlin.math.abs(minV), kotlin.math.abs(maxV), 1f)
                     val range = max(1f, yMax - yMin)
-                    val targetP2P = range * 0.72f
-                    val targetGain = (targetP2P / p2p).coerceIn(0.1f, 200f)
+                    val halfRange = (yMax - yMin) / 2f
+                    // 基于最大幅值计算增益，避免DC偏置导致削顶
+                    // targetGain = 半量程 * 0.72 / maxExtent
+                    val targetGain = (halfRange * 0.72f / maxExtent).coerceIn(0.1f, 200f)
                     autoGain = autoGain * 0.75f + targetGain * 0.25f
                 }
             }

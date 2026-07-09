@@ -23,7 +23,7 @@ class MockDataSource(
             val fHr = startBpm / 60f
             val fResp = startRpm / 60f
             // ADC: 2048=0V, breathing ~800pp, HR ~200pp
-            val x = 2048f +
+            val x = 2600f +
                 800f * sin(2f * PI.toFloat() * fResp * sec) +
                 200f * sin(2f * PI.toFloat() * fHr * sec) +
                 Random.nextFloat() * 10f - 5f
