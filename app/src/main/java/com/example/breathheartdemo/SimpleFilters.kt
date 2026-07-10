@@ -425,3 +425,42 @@ class BreathingRateDetector {
         prevPeakAmp = 0f; prevValleyAmp = 0f; respP2p = 100f
     }
 }
+
+/** Zero-crossing based RPM estimator.
+ *  Counts positive zero crossings of the respiratory signal over a
+ *  sliding window, then converts to RPM:  RPM = zc_count * 30 / windowSec
+ *  Each positive zero crossing = 0.5 respiratory cycles.
+ *  Immune to intra-cycle sub-peaks that inflate derivative-based detectors.
+ */
+class ZeroCrossingRpm(
+    private val windowSec: Int = 30,
+    private val fsHz: Int = 50
+) {
+    private val crossings = ArrayDeque<Long>()
+    private var prevResp = 0f
+
+    fun next(resp: Float, tMs: Long): Float? {
+        // Detect positive-going zero crossing
+        if (prevResp <= 0f && resp > 0f) {
+            crossings.addLast(tMs)
+        }
+        prevResp = resp
+
+        // Remove crossings outside the window
+        val cutoff = tMs - windowSec * 1000L
+        while (crossings.isNotEmpty() && crossings.first() < cutoff) {
+            crossings.removeFirst()
+        }
+
+        // RPM = zc_pos * (60 / windowSec)  (each positive ZC = 1 breath)
+        return if (crossings.size >= 2) {
+            crossings.size.toFloat() * 30f / windowSec
+        } else null
+    }
+
+    fun clear() {
+        crossings.clear()
+        prevResp = 0f
+    }
+}
+

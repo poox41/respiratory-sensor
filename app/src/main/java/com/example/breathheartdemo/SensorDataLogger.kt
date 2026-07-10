@@ -26,13 +26,13 @@ class SensorDataLogger(private val context: Context) {
         val fileName = "sensor_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.csv"
         logFile = File(dir, fileName)
         writer = BufferedWriter(FileWriter(logFile!!, true))
-        writer?.write("time_ms,time_str,rawX,x,dc,xF,resp,hr,normHr,bpm,rpm")
+        writer?.write("time_ms,time_str,rawX,x,dc,xF,resp,hr,normHr,bpm,rpm,rpm_zc")
         writer?.newLine()
         isLogging = true
         return logFile
     }
 
-    fun log(tMs: Long, rawX: Float, x: Float, dc: Float, xF: Float, resp: Float, hr: Float, normHr: Float, bpm: Float? = null, rpm: Float? = null) {
+    fun log(tMs: Long, rawX: Float, x: Float, dc: Float, xF: Float, resp: Float, hr: Float, normHr: Float, bpm: Float? = null, rpm: Float? = null, rpmZc: Float? = null) {
         if (!isLogging || writer == null) return
         try {
             writer?.apply {
@@ -46,7 +46,8 @@ class SensorDataLogger(private val context: Context) {
                 write(hr.toString()); write(",")
                 write(normHr.toString()); write(",")
                 write(bpm?.toString() ?: ""); write(",")
-                write(rpm?.toString() ?: "")
+                write(rpm?.toString() ?: ""); write(",")
+                write(rpmZc?.toString() ?: "")
                 newLine()
             }
         } catch (_: Exception) {

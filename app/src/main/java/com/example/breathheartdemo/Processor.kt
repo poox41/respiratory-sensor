@@ -19,14 +19,15 @@ class Processor(private val fsHz: Int) {
 
     private val respFIR = FIRFilter(RESP_FIR_COEFFS)  // 633阶FIR低通
     private val hrHPF = HighPassFilter(alpha = 0.964f)     // ~0.3 Hz cutoff, removes breathing residue
-    private val hrHPF2 = HighPassFilter(alpha = 0.964f)    // 二级级联
+    private val hrHPF2 = HighPassFilter(alpha = 0.939f)   // ~0.5 Hz cutoff, suppress residual breathing
 
     private val minHrAmplitude = 0.01f  // minimum HR signal amplitude
     private var isHrValid = true  // set false when amplitude too low, blocks hrBuf writes
 
     // Heart rate bandpass 0.8~3 Hz
     private val hrCalc = MovingAverage(windowSize = maxOf(1, fsHz / 5))  // HR calculation: 10 samples
-    private val hrDisplaySmooth = DualSmoother(windowSize = 12)  // HR display: 12+12 samples
+    private val hrDisplaySmooth = DualSmoother(windowSize = 12)
+    private val hrPostLPF = LowPassFilter(cutoffHz = 3f, sampleRate = fsHz)  // 3Hz LPF, suppress >2.5Hz noise
 
     // HR display normalization: 5s sliding window (250 samples at 50Hz)
     private val NORM_WINDOW = fsHz * 5
@@ -161,6 +162,7 @@ class Processor(private val fsHz: Int) {
     )
     private var lastValidBpm: Float? = null
     private var lastValidBpmWasNull = true
+    private var smoothBpm: Float? = null
     private var zeroCrossBpm: Float? = null
     private var prevHrRaw = 0f
     private var lastHrZeroT = 0L
@@ -170,6 +172,7 @@ class Processor(private val fsHz: Int) {
     private var motionFlag = false
     private var motionEndTime = 0L
     private val breathDetector = BreathingRateDetector()
+    private val zeroCrossRpm = ZeroCrossingRpm()
     private val heartSep = DifferentialHeartSeparator()
     private val hrPeakDetector = DualPeakDetector()
     private var prevRawX = 2600f
@@ -250,9 +253,11 @@ class Processor(private val fsHz: Int) {
 
         // --- Heart rate: subtract respiration, split into calc + display ---
         val hrRaw = heartSep.next(xF)
-        val hrF = hrHPF.next(hrRaw)
-        val hr = hrCalc.next(hrF)              // calculation channel (light MA, 10 samples)
-        val hrDisplay = hrDisplaySmooth.next(hrF)  // display channel (DualSmoother, 12+12 samples)
+        val hrF1 = hrHPF.next(hrRaw)   // 0.3 Hz HPF
+        val hrF = hrHPF2.next(hrF1)
+        val hrFilt = hrPostLPF.next(hrF)   // 3Hz LPF, suppress >2.5Hz noise
+        val hr = hrCalc.next(hrFilt)              // calculation channel (light MA, 10 samples)
+        val hrDisplay = hrDisplaySmooth.next(hrFilt)  // display channel (DualSmoother, 12+12 samples)
         // 过零检测BPM：独立于normHr和DualSmoother，基于hrRaw的上升沿过零
         if (prevHrRaw < 0f && hrF >= 0f && (t - lastHrZeroT) > 250L) {
             if (lastHrZeroT > 0L) {
@@ -266,8 +271,9 @@ class Processor(private val fsHz: Int) {
         }
         prevHrRaw = hrF
 
-        val normHr = normalizeForDisplay(hrDisplay)  // 用于峰值检测，不写入缓冲区
-        sensorLogger?.log(t, rawX, xDc, dcBlocker.dc, xF, resp, hr, normHr, _rates.value.bpm, _rates.value.rpm)  // normHr列
+        val normHr = normalizeForDisplay(hrDisplay)
+        val rpmZc = zeroCrossRpm.next(resp, t)
+        sensorLogger?.log(t, rawX, xDc, dcBlocker.dc, xF, resp, hr, normHr, _rates.value.bpm, _rates.value.rpm, rpmZc)  // normHr列
         val signalActive = true
         rawBuf.add(t, if (signalActive) xDc else 0f)  // DC-removed ADC waveform
         preBuf.add(t, if (signalActive) xF else 0f)       // pre-filtered signal
@@ -278,7 +284,7 @@ class Processor(private val fsHz: Int) {
         if (signalState == SignalState.MEASURING && signalActive && !motionFlag) {
             // Dual peak detection on heartSep output (firstPeak + envelope + secondPeak → AO → BPM)
             hrEstimator.add(t, hr)
-            val peakBpm = hrPeakDetector.next(hrF, t)
+            val peakBpm = hrPeakDetector.next(hrFilt, t)
             if (peakBpm != null) lastPeakBpm = peakBpm
 
             // Threshold-based peak detection on normalized HR (-1 to 1)
@@ -320,6 +326,12 @@ class Processor(private val fsHz: Int) {
             }
             lastValidBpmWasNull = peakBpmVal == null
             nextBpm = hrRateSmoother.update(bpmToUse)
+            // EMA on final BPM output: suppress single-beat jumps
+            if (nextBpm != null) {
+                smoothBpm = if (smoothBpm == null) nextBpm
+                    else smoothBpm!! * 0.85f + nextBpm!! * 0.15f
+                nextBpm = smoothBpm
+            }
         }
 
         if (!motionFlag) {
@@ -376,6 +388,8 @@ class Processor(private val fsHz: Int) {
         respRateSmoother.clear()
        respRateGate.clear()
         hrHPF.clear()
+        hrHPF2.clear()
+        hrPostLPF.clear()
         dcBlocker.clear()
         notch50Hz.clear()
         antiAliasLPF.clear()
@@ -383,9 +397,11 @@ class Processor(private val fsHz: Int) {
         hrPeakDetector.clear()
         motionFlag = false; motionEndTime = 0L; motionAbsBuf.clear()
         breathDetector.clear()
+        zeroCrossRpm.clear()
         lastHrEstimateMs = 0L
        lastRespEstimateMs = 0L
         _rates.value = Rates()
+        smoothBpm = null
         lastBpmEstimate = null
         lastRpmEstimate = null
     }
