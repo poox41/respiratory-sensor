@@ -26,28 +26,90 @@ class SensorDataLogger(private val context: Context) {
         val fileName = "sensor_${SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())}.csv"
         logFile = File(dir, fileName)
         writer = BufferedWriter(FileWriter(logFile!!, true))
-        writer?.write("time_ms,time_str,rawX,x,dc,xF,resp,hr,normHr,bpm,rpm,rpm_zc")
+        writer?.write(
+            "time_ms,time_str,rawX,xDc,dc,xF,resp," +
+                "hrRaw,hrF1,hrF,hrFilt,hrCalc,hrDisplay,heartCandidate,heartEnvelope," +
+                "cleanHeart,cleanHeartEnvelope,normHr," +
+                "windowedPeak,windowedBpm,periodicBpm,periodicQuality," +
+                "cleanPeriodicBpm,cleanPeriodicQuality,cleanPeak,cleanPeakBpm," +
+                "thresholdPeak,dualPeakBpm,bpm,rpm,rpm_zc," +
+                "respCycle,cycleRpm"
+        )
         writer?.newLine()
         isLogging = true
         return logFile
     }
 
-    fun log(tMs: Long, rawX: Float, x: Float, dc: Float, xF: Float, resp: Float, hr: Float, normHr: Float, bpm: Float? = null, rpm: Float? = null, rpmZc: Float? = null) {
+    fun log(
+        tMs: Long,
+        rawX: Float,
+        xDc: Float,
+        dc: Float,
+        xF: Float,
+        resp: Float,
+        hrRaw: Float,
+        hrF1: Float,
+        hrF: Float,
+        hrFilt: Float,
+        hrCalc: Float,
+        hrDisplay: Float,
+        heartCandidate: Float,
+        heartEnvelope: Float,
+        cleanHeart: Float,
+        cleanHeartEnvelope: Float,
+        normHr: Float,
+        windowedPeak: Boolean,
+        windowedBpm: Float?,
+        periodicBpm: Float?,
+        periodicQuality: Float?,
+        cleanPeriodicBpm: Float?,
+        cleanPeriodicQuality: Float?,
+        cleanPeak: Boolean,
+        cleanPeakBpm: Float?,
+        thresholdPeak: Boolean,
+        dualPeakBpm: Float?,
+        bpm: Float? = null,
+        rpm: Float? = null,
+        rpmZc: Float? = null,
+        respCycle: Boolean,
+        cycleRpm: Float?
+    ) {
         if (!isLogging || writer == null) return
         try {
             writer?.apply {
                 write(tMs.toString()); write(",")
                 write(dateFormat.format(Date(tMs))); write(",")
                 write(rawX.toString()); write(",")
-                write(x.toString()); write(",")
+                write(xDc.toString()); write(",")
                 write(dc.toString()); write(",")
                 write(xF.toString()); write(",")
                 write(resp.toString()); write(",")
-                write(hr.toString()); write(",")
+                write(hrRaw.toString()); write(",")
+                write(hrF1.toString()); write(",")
+                write(hrF.toString()); write(",")
+                write(hrFilt.toString()); write(",")
+                write(hrCalc.toString()); write(",")
+                write(hrDisplay.toString()); write(",")
+                write(heartCandidate.toString()); write(",")
+                write(heartEnvelope.toString()); write(",")
+                write(cleanHeart.toString()); write(",")
+                write(cleanHeartEnvelope.toString()); write(",")
                 write(normHr.toString()); write(",")
+                write(if (windowedPeak) "1" else "0"); write(",")
+                write(windowedBpm?.toString() ?: ""); write(",")
+                write(periodicBpm?.toString() ?: ""); write(",")
+                write(periodicQuality?.toString() ?: ""); write(",")
+                write(cleanPeriodicBpm?.toString() ?: ""); write(",")
+                write(cleanPeriodicQuality?.toString() ?: ""); write(",")
+                write(if (cleanPeak) "1" else "0"); write(",")
+                write(cleanPeakBpm?.toString() ?: ""); write(",")
+                write(if (thresholdPeak) "1" else "0"); write(",")
+                write(dualPeakBpm?.toString() ?: ""); write(",")
                 write(bpm?.toString() ?: ""); write(",")
                 write(rpm?.toString() ?: ""); write(",")
-                write(rpmZc?.toString() ?: "")
+                write(rpmZc?.toString() ?: ""); write(",")
+                write(if (respCycle) "1" else "0"); write(",")
+                write(cycleRpm?.toString() ?: "")
                 newLine()
             }
         } catch (_: Exception) {

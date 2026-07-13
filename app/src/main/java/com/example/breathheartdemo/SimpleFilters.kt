@@ -111,6 +111,69 @@ class LowPassFilter(private val cutoffHz: Float, private val sampleRate: Int) {
     fun next(x:Float):Float{val y=alpha*x+(1f-alpha)*yPrev;yPrev=y;return y}
     fun clear(){yPrev=0f}
 }
+
+/** Second-order Butterworth biquad used by the parallel heart-band experiment. */
+class BiquadFilter private constructor(
+    private val b0: Float,
+    private val b1: Float,
+    private val b2: Float,
+    private val a1: Float,
+    private val a2: Float
+) {
+    private var x1 = 0f
+    private var x2 = 0f
+    private var y1 = 0f
+    private var y2 = 0f
+
+    fun next(x: Float): Float {
+        val y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
+        x2 = x1
+        x1 = x
+        y2 = y1
+        y1 = y
+        return y
+    }
+
+    fun clear() {
+        x1 = 0f
+        x2 = 0f
+        y1 = 0f
+        y2 = 0f
+    }
+
+    companion object {
+        private const val BUTTERWORTH_Q = 0.70710678f
+
+        fun lowPass(cutoffHz: Float, sampleRate: Int): BiquadFilter {
+            val omega = 2.0 * Math.PI * cutoffHz / sampleRate
+            val cosOmega = kotlin.math.cos(omega).toFloat()
+            val alpha = (kotlin.math.sin(omega) / (2.0 * BUTTERWORTH_Q)).toFloat()
+            val a0 = 1f + alpha
+            return BiquadFilter(
+                b0 = ((1f - cosOmega) / 2f) / a0,
+                b1 = (1f - cosOmega) / a0,
+                b2 = ((1f - cosOmega) / 2f) / a0,
+                a1 = (-2f * cosOmega) / a0,
+                a2 = (1f - alpha) / a0
+            )
+        }
+
+        fun highPass(cutoffHz: Float, sampleRate: Int): BiquadFilter {
+            val omega = 2.0 * Math.PI * cutoffHz / sampleRate
+            val cosOmega = kotlin.math.cos(omega).toFloat()
+            val alpha = (kotlin.math.sin(omega) / (2.0 * BUTTERWORTH_Q)).toFloat()
+            val a0 = 1f + alpha
+            return BiquadFilter(
+                b0 = ((1f + cosOmega) / 2f) / a0,
+                b1 = (-(1f + cosOmega)) / a0,
+                b2 = ((1f + cosOmega) / 2f) / a0,
+                a1 = (-2f * cosOmega) / a0,
+                a2 = (1f - alpha) / a0
+            )
+        }
+    }
+}
+
 class DifferentialHeartSeparator(private val windowSize: Int = 10, private val delaySteps: Int = 5) {
     // Stage 1: Moving Average (Ring Buffer + Running Sum, O(1))
     private val maBuf = FloatArray(windowSize)
@@ -321,6 +384,100 @@ class DualPeakDetector(
         hrAmpEma = 10f
     }
 }
+
+data class WindowedHeartDetection(
+    val detected: Boolean = false,
+    val bpm: Float? = null,
+    val peakTimeMs: Long? = null
+)
+
+/**
+ * Parallel diagnostic detector for the normalized display waveform.
+ * Local maxima arriving within one mechanical heart complex are grouped first;
+ * only the strongest maximum is accepted after the group window expires.
+ */
+class WindowedHeartPeakDetector(
+    private val threshold: Float = 0.3f,
+    private val groupWindowMs: Long = 300L,
+    private val refractoryMs: Long = 500L
+) {
+    private var previous2 = 0f
+    private var previous1 = 0f
+    private var previous1TimeMs = 0L
+    private var sampleCount = 0
+
+    private var pendingTimeMs = 0L
+    private var pendingAmplitude = Float.NEGATIVE_INFINITY
+    private var lastAcceptedTimeMs = 0L
+    private val recentIntervalsMs = ArrayDeque<Long>()
+
+    fun next(x: Float, timeMs: Long): WindowedHeartDetection {
+        var result = WindowedHeartDetection()
+
+        if (sampleCount >= 2 && previous1 > previous2 && previous1 >= x && previous1 > threshold) {
+            if (pendingTimeMs == 0L) {
+                pendingTimeMs = previous1TimeMs
+                pendingAmplitude = previous1
+            } else if (previous1TimeMs - pendingTimeMs <= groupWindowMs) {
+                if (previous1 > pendingAmplitude) {
+                    pendingTimeMs = previous1TimeMs
+                    pendingAmplitude = previous1
+                }
+            } else {
+                result = acceptPending()
+                pendingTimeMs = previous1TimeMs
+                pendingAmplitude = previous1
+            }
+        }
+
+        if (pendingTimeMs > 0L && timeMs - pendingTimeMs >= groupWindowMs) {
+            result = acceptPending()
+        }
+
+        previous2 = previous1
+        previous1 = x
+        previous1TimeMs = timeMs
+        sampleCount++
+        return result
+    }
+
+    private fun acceptPending(): WindowedHeartDetection {
+        val peakTimeMs = pendingTimeMs
+        pendingTimeMs = 0L
+        pendingAmplitude = Float.NEGATIVE_INFINITY
+        if (peakTimeMs <= 0L ||
+            (lastAcceptedTimeMs > 0L && peakTimeMs - lastAcceptedTimeMs < refractoryMs)
+        ) {
+            return WindowedHeartDetection()
+        }
+
+        var bpm: Float? = null
+        if (lastAcceptedTimeMs > 0L) {
+            val intervalMs = peakTimeMs - lastAcceptedTimeMs
+            if (intervalMs in 500L..1500L) {
+                recentIntervalsMs.addLast(intervalMs)
+                while (recentIntervalsMs.size > 5) recentIntervalsMs.removeFirst()
+                val sorted = recentIntervalsMs.sorted()
+                val medianMs = sorted[sorted.size / 2]
+                bpm = 60_000f / medianMs
+            }
+        }
+        lastAcceptedTimeMs = peakTimeMs
+        return WindowedHeartDetection(detected = true, bpm = bpm, peakTimeMs = peakTimeMs)
+    }
+
+    fun clear() {
+        previous2 = 0f
+        previous1 = 0f
+        previous1TimeMs = 0L
+        sampleCount = 0
+        pendingTimeMs = 0L
+        pendingAmplitude = Float.NEGATIVE_INFINITY
+        lastAcceptedTimeMs = 0L
+        recentIntervalsMs.clear()
+    }
+}
+
 class BreathingRateDetector {
     private var data0 = 0f
     private var data1 = 0f
@@ -461,6 +618,136 @@ class ZeroCrossingRpm(
     fun clear() {
         crossings.clear()
         prevResp = 0f
+    }
+}
+
+data class RespCycleDetection(
+    val crossing: Boolean = false,
+    val rpm: Float? = null
+)
+
+/**
+ * Full-cycle respiratory-rate estimator. One positive-going zero crossing is
+ * one complete breath, so rate is calculated from crossing-to-crossing time.
+ */
+class RespCycleRateDetector(
+    private val minCycleMs: Long = 2_000L,
+    private val maxCycleMs: Long = 10_000L,
+    private val historySize: Int = 5
+) {
+    private var previous = 0f
+    private var lastCrossingTimeMs = 0L
+    private val cycleHistoryMs = ArrayDeque<Long>()
+
+    fun next(resp: Float, timeMs: Long): RespCycleDetection {
+        val crossed = previous <= 0f && resp > 0f
+        previous = resp
+        if (!crossed) return RespCycleDetection()
+
+        var rpm: Float? = null
+        if (lastCrossingTimeMs > 0L) {
+            val cycleMs = timeMs - lastCrossingTimeMs
+            if (cycleMs in minCycleMs..maxCycleMs) {
+                cycleHistoryMs.addLast(cycleMs)
+                while (cycleHistoryMs.size > historySize) cycleHistoryMs.removeFirst()
+                val sorted = cycleHistoryMs.sorted()
+                val medianCycleMs = sorted[sorted.size / 2]
+                rpm = 60_000f / medianCycleMs
+            }
+        }
+        lastCrossingTimeMs = timeMs
+        return RespCycleDetection(crossing = true, rpm = rpm)
+    }
+
+    fun clear() {
+        previous = 0f
+        lastCrossingTimeMs = 0L
+        cycleHistoryMs.clear()
+    }
+}
+
+data class HeartPeriodicityResult(
+    val bpm: Float? = null,
+    val quality: Float? = null
+)
+
+/**
+ * Diagnostic heart-rate estimator based on waveform periodicity rather than
+ * individual threshold crossings.  The result is intentionally kept separate
+ * from the displayed BPM until it has been checked against recorded data.
+ */
+class HeartPeriodicityEstimator(
+    private val fsHz: Int,
+    private val windowSeconds: Int = 15,
+    private val updateIntervalMs: Long = 1_000L,
+    private val minBpm: Float = 50f,
+    private val maxBpm: Float = 110f,
+    private val minimumQuality: Float = 0.18f
+) {
+    private val samples = ArrayDeque<Float>()
+    private val capacity = fsHz * windowSeconds
+    private var lastSampleTimeMs = 0L
+    private var lastUpdateTimeMs = 0L
+    private var lastResult = HeartPeriodicityResult()
+
+    fun next(value: Float, timeMs: Long): HeartPeriodicityResult {
+        // Do not correlate samples from opposite sides of a BLE/motion gap.
+        val expectedStepMs = 1_000L / fsHz
+        if (lastSampleTimeMs > 0L && timeMs - lastSampleTimeMs > expectedStepMs * 3L) {
+            clear()
+        }
+        lastSampleTimeMs = timeMs
+
+        samples.addLast(value)
+        while (samples.size > capacity) samples.removeFirst()
+        if (samples.size < capacity || timeMs - lastUpdateTimeMs < updateIntervalMs) {
+            return lastResult
+        }
+        lastUpdateTimeMs = timeMs
+
+        val values = samples.toFloatArray()
+        var mean = 0f
+        for (sample in values) mean += sample
+        mean /= values.size
+        for (i in values.indices) values[i] -= mean
+
+        val minLag = kotlin.math.ceil(fsHz * 60f / maxBpm).toInt()
+        val maxLag = kotlin.math.floor(fsHz * 60f / minBpm).toInt()
+        var bestLag = 0
+        var bestCorrelation = Float.NEGATIVE_INFINITY
+        for (lag in minLag..maxLag) {
+            var cross = 0.0
+            var energyA = 0.0
+            var energyB = 0.0
+            for (i in lag until values.size) {
+                val a = values[i].toDouble()
+                val b = values[i - lag].toDouble()
+                cross += a * b
+                energyA += a * a
+                energyB += b * b
+            }
+            val denominator = kotlin.math.sqrt(energyA * energyB)
+            val correlation = if (denominator > 1e-9) (cross / denominator).toFloat() else 0f
+            if (correlation > bestCorrelation) {
+                bestCorrelation = correlation
+                bestLag = lag
+            }
+        }
+
+        val bpm = if (bestLag > 0 && bestCorrelation >= minimumQuality) {
+            fsHz * 60f / bestLag
+        } else {
+            null
+        }
+        lastResult = HeartPeriodicityResult(bpm = bpm, quality = bestCorrelation.coerceAtLeast(0f))
+        return lastResult
+    }
+
+    fun clear() {
+        samples.clear()
+        lastSampleTimeMs = 0L
+        lastUpdateTimeMs = 0L
+        lastResult = HeartPeriodicityResult()
     }
 }
 

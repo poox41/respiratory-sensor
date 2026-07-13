@@ -54,7 +54,7 @@ fun AppScreen() {
     var autoRawWindow by remember { mutableStateOf(true) }
     var rawGain by remember { mutableStateOf(1f) }
     var rawWindowMs by remember { mutableStateOf(6000L) }
-    var autoHrGain by remember { mutableStateOf(false) }
+    var autoHrGain by remember { mutableStateOf(true) }
     var hrGain by remember { mutableStateOf(1f) }
     var autoRespGain by remember { mutableStateOf(true) }
     var respGain by remember { mutableStateOf(1f) }
@@ -64,7 +64,7 @@ fun AppScreen() {
         manualWindowMs = rawWindowMs
     )
     val effectiveHrGain = rememberAutoGain(
-        buffer = processor.hrBuf,
+        buffer = processor.cleanHeartBuf,
         windowMs = 6000L,
         yMin = -300f,
         yMax = 300f,
@@ -100,7 +100,7 @@ fun AppScreen() {
     val raw16Preview by bleClient.raw16Preview.collectAsState()
     val rawPreview by processor.rawPreview.collectAsState()
     val centeredPreview by processor.centeredPreview.collectAsState()
-    val peakTimes by processor.peakTimes.collectAsState()
+    val cleanPeakTimes by processor.cleanPeakTimes.collectAsState()
 
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
@@ -547,7 +547,7 @@ fun AppScreen() {
                 ChartCard(title = stringResource(R.string.chart_hr)) {
                     Column {
                         Waveform(
-                            buffer = processor.hrBuf,
+                            buffer = processor.cleanHeartBuf,
                             color = MaterialTheme.colorScheme.error,
                             yMin = -300f,
                         yMax = 300f,
@@ -556,7 +556,7 @@ fun AppScreen() {
                             showGrid = true,
                             showZeroLine = true,
                             zeroLineValue = 0f,
-                        peakTimes = peakTimes
+                        peakTimes = cleanPeakTimes
                     )
                     Spacer(Modifier.height(8.dp))
                         Row(
