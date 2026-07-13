@@ -101,6 +101,7 @@ fun AppScreen() {
     val rawPreview by processor.rawPreview.collectAsState()
     val centeredPreview by processor.centeredPreview.collectAsState()
     val cleanPeakTimes by processor.cleanPeakTimes.collectAsState()
+    val heartTemplateStatus by processor.heartTemplateStatus.collectAsState()
 
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
@@ -130,7 +131,7 @@ fun AppScreen() {
         if (useMock) {
             job = scope.launch {
                 MockDataSource(fsHz = fsHz).samples().collect { s ->
-                    processor.onSample(s)
+                    processor.onSample(s, bypassMotionDetection = true)
                 }
             }
             if (hasBleScanPermission(context)) {
@@ -602,6 +603,45 @@ fun AppScreen() {
                                 ) { Text("+ ") }
                             }
                         }
+                    }
+                }
+            }
+
+            item {
+                ChartCard(title = "周期增强心搏展示信号（非原始波形）") {
+                    Column {
+                        Text(
+                            text = if (heartTemplateStatus.ready) {
+                                "最近 ${heartTemplateStatus.cycles} 个有效心搏周期同步叠加；" +
+                                    "模板一致性 " + String.format(
+                                        "%.2f",
+                                        heartTemplateStatus.quality ?: 0f
+                                    )
+                            } else {
+                                "正在建立模板：需要至少 3 个有效心搏周期，当前 ${heartTemplateStatus.cycles} 个"
+                            },
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Waveform(
+                            buffer = processor.enhancedHeartBuf,
+                            color = MaterialTheme.colorScheme.primary,
+                            yMin = -1.2f,
+                            yMax = 1.2f,
+                            windowMs = 10000L,
+                            gain = 1f,
+                            showGrid = true,
+                            showZeroLine = true,
+                            zeroLineValue = 0f,
+                            peakTimes = cleanPeakTimes
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "仅用于突出周期形态；它由 cleanHeart 周期对齐、归一化和模板重构得到，" +
+                                "不得作为原始提取波形，也不参与 BPM 计算。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
                 }
             }

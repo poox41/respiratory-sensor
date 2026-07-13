@@ -29,7 +29,8 @@ class SensorDataLogger(private val context: Context) {
         writer?.write(
             "time_ms,time_str,rawX,xDc,dc,xF,resp," +
                 "hrRaw,hrF1,hrF,hrFilt,hrCalc,hrDisplay,heartCandidate,heartEnvelope," +
-                "cleanHeart,cleanHeartEnvelope,normHr," +
+                "cleanHeart,cleanHeartEnvelope,heartTemplateEnhanced,heartTemplateQuality," +
+                "heartTemplateCycles,heartTemplateReady,normHr," +
                 "windowedPeak,windowedBpm,periodicBpm,periodicQuality," +
                 "cleanPeriodicBpm,cleanPeriodicQuality,cleanPeak,cleanPeakBpm," +
                 "thresholdPeak,dualPeakBpm,bpm,rpm,rpm_zc," +
@@ -57,6 +58,10 @@ class SensorDataLogger(private val context: Context) {
         heartEnvelope: Float,
         cleanHeart: Float,
         cleanHeartEnvelope: Float,
+        heartTemplateEnhanced: Float,
+        heartTemplateQuality: Float?,
+        heartTemplateCycles: Int,
+        heartTemplateReady: Boolean,
         normHr: Float,
         windowedPeak: Boolean,
         windowedBpm: Float?,
@@ -94,6 +99,10 @@ class SensorDataLogger(private val context: Context) {
                 write(heartEnvelope.toString()); write(",")
                 write(cleanHeart.toString()); write(",")
                 write(cleanHeartEnvelope.toString()); write(",")
+                write(heartTemplateEnhanced.toString()); write(",")
+                write(heartTemplateQuality?.toString() ?: ""); write(",")
+                write(heartTemplateCycles.toString()); write(",")
+                write(if (heartTemplateReady) "1" else "0"); write(",")
                 write(normHr.toString()); write(",")
                 write(if (windowedPeak) "1" else "0"); write(",")
                 write(windowedBpm?.toString() ?: ""); write(",")

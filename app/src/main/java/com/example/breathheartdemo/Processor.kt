@@ -13,6 +13,8 @@ class Processor(private val fsHz: Int) {
    // UI-only waveform from the validated steeper heart-band experiment.
    // hrBuf remains unchanged because it is also consumed by the sleep model.
    val cleanHeartBuf = RingBuffer(cap)
+   // Beat-synchronous averaged/template-reconstructed signal for display only.
+   val enhancedHeartBuf = RingBuffer(cap)
 
     // Pre-filter (0.05~8 Hz): DC remove + 8 Hz LP
     private val preLP = MovingAverage(windowSize = 8)  // 8 samples (~160ms, ~6 Hz LP)
@@ -47,6 +49,7 @@ class Processor(private val fsHz: Int) {
     private val cleanHeartLPF2 = BiquadFilter.lowPass(cutoffHz = 4f, sampleRate = fsHz)
     private val cleanHeartSmooth = MovingAverage(windowSize = 3)
     private val cleanHeartEnvelopeSmooth = MovingAverage(windowSize = maxOf(1, fsHz))
+    private val heartbeatTemplateEnhancer = HeartbeatTemplateEnhancer(fsHz = fsHz)
 
     // HR display normalization: 5s sliding window (250 samples at 50Hz)
     private val NORM_WINDOW = fsHz * 5
@@ -175,6 +178,8 @@ class Processor(private val fsHz: Int) {
     private val _cleanPeakTimes = MutableStateFlow<List<Long>>(emptyList())
     val cleanPeakTimes: StateFlow<List<Long>> = _cleanPeakTimes
     private val cleanPeakTimesList = mutableListOf<Long>()
+    private val _heartTemplateStatus = MutableStateFlow(HeartTemplateEnhancement())
+    val heartTemplateStatus: StateFlow<HeartTemplateEnhancement> = _heartTemplateStatus
     private val hrEstimator = PeakRateEstimator(
         fsHz = fsHz,
         refractoryMs = 250,
@@ -194,6 +199,7 @@ class Processor(private val fsHz: Int) {
     private val motionRawBuf = RingBuffer(fsHz * 2)
     private var motionFlag = false
     private var motionEndTime = 0L
+    private var lastBypassMotionDetection = false
     private val breathDetector = BreathingRateDetector()
     private val zeroCrossRpm = ZeroCrossingRpm()
     private val respCycleRateDetector = RespCycleRateDetector()
@@ -233,72 +239,86 @@ class Processor(private val fsHz: Int) {
     private var lastBpmEstimate: Float? = null
    private var lastRpmEstimate: Float? = null
 
-    fun onSample(sample: Sample) {
+    fun onSample(sample: Sample, bypassMotionDetection: Boolean = false) {
         val t = sample.tMs
         val rawX = sample.x
         val validatedRawX = rawX
 
+        // Mock data intentionally has a much larger respiration amplitude than
+        // the real-sensor motion threshold. Reset the motion state when the
+        // source mode changes, then bypass motion rejection for mock samples.
+        if (bypassMotionDetection != lastBypassMotionDetection) {
+            motionFlag = false
+            motionEndTime = 0L
+            motionAbsBuf.clear()
+            motionRawBuf.clear()
+            prevRawX = rawX
+            _signalQuality.value = SignalState.MEASURING
+            lastBypassMotionDetection = bypassMotionDetection
+        }
 
         val x = validatedRawX
         // 体动检测：基于相邻采样点的差值（rawX变化率），不依赖基线
-        val diff = kotlin.math.abs(rawX - prevRawX)
-        prevRawX = rawX
-        motionAbsBuf.add(t, diff)
-        motionRawBuf.add(t, rawX)
-        if (!motionFlag) {
-            val (motionTs, motionValues) = motionAbsBuf.snapshot()
-            val minT = t - 1000L; var peakDiff = 0f
-            for (i in motionValues.indices) {
-                if (motionTs[i] >= minT && motionValues[i] > peakDiff) {
-                    peakDiff = motionValues[i]
+        if (!bypassMotionDetection) {
+            val diff = kotlin.math.abs(rawX - prevRawX)
+            prevRawX = rawX
+            motionAbsBuf.add(t, diff)
+            motionRawBuf.add(t, rawX)
+            if (!motionFlag) {
+                val (motionTs, motionValues) = motionAbsBuf.snapshot()
+                val minT = t - 1000L; var peakDiff = 0f
+                for (i in motionValues.indices) {
+                    if (motionTs[i] >= minT && motionValues[i] > peakDiff) {
+                        peakDiff = motionValues[i]
+                    }
+                }
+                val (rawMotionTs, rawMotionValues) = motionRawBuf.snapshot()
+                val rawMinT = t - 2000L
+                var rawMin = Float.POSITIVE_INFINITY
+                var rawMax = Float.NEGATIVE_INFINITY
+                var rawMotionCount = 0
+                for (i in rawMotionValues.indices) {
+                    if (rawMotionTs[i] >= rawMinT) {
+                        val value = rawMotionValues[i]
+                        if (value < rawMin) rawMin = value
+                        if (value > rawMax) rawMax = value
+                        rawMotionCount++
+                    }
+                }
+                val rawRange = if (rawMotionCount >= fsHz && rawMin <= rawMax) rawMax - rawMin else 0f
+                if (peakDiff > 1638f || rawRange > 650f) {
+                    motionFlag = true
+                    motionEndTime = t + 15000L
+                    _signalQuality.value = SignalState.MOTION
+                }
+            } else if (t >= motionEndTime) {
+                val (motionTs, motionValues) = motionAbsBuf.snapshot()
+                val minT = t - 2000L; var stableDiff = 0f
+                for (i in motionValues.indices) {
+                    if (motionTs[i] >= minT && motionValues[i] > stableDiff) {
+                        stableDiff = motionValues[i]
+                    }
+                }
+                val (rawMotionTs, rawMotionValues) = motionRawBuf.snapshot()
+                val rawMinT = t - 2000L
+                var rawMin = Float.POSITIVE_INFINITY
+                var rawMax = Float.NEGATIVE_INFINITY
+                for (i in rawMotionValues.indices) {
+                    if (rawMotionTs[i] >= rawMinT) {
+                        val value = rawMotionValues[i]
+                        if (value < rawMin) rawMin = value
+                        if (value > rawMax) rawMax = value
+                    }
+                }
+                val stableRawRange = if (rawMin <= rawMax) rawMax - rawMin else Float.POSITIVE_INFINITY
+                if (stableDiff < 819f && stableRawRange < 500f) {
+                    motionFlag = false
+                    _signalQuality.value = SignalState.MEASURING
                 }
             }
-            val (rawMotionTs, rawMotionValues) = motionRawBuf.snapshot()
-            val rawMinT = t - 2000L
-            var rawMin = Float.POSITIVE_INFINITY
-            var rawMax = Float.NEGATIVE_INFINITY
-            var rawMotionCount = 0
-            for (i in rawMotionValues.indices) {
-                if (rawMotionTs[i] >= rawMinT) {
-                    val value = rawMotionValues[i]
-                    if (value < rawMin) rawMin = value
-                    if (value > rawMax) rawMax = value
-                    rawMotionCount++
-                }
-            }
-            val rawRange = if (rawMotionCount >= fsHz && rawMin <= rawMax) rawMax - rawMin else 0f
-            if (peakDiff > 1638f || rawRange > 650f) {
-                motionFlag = true
-                motionEndTime = t + 15000L
-                _signalQuality.value = SignalState.MOTION
-            }
-        } else if (t >= motionEndTime) {
-            val (motionTs, motionValues) = motionAbsBuf.snapshot()
-            val minT = t - 2000L; var stableDiff = 0f
-            for (i in motionValues.indices) {
-                if (motionTs[i] >= minT && motionValues[i] > stableDiff) {
-                    stableDiff = motionValues[i]
-                }
-            }
-            val (rawMotionTs, rawMotionValues) = motionRawBuf.snapshot()
-            val rawMinT = t - 2000L
-            var rawMin = Float.POSITIVE_INFINITY
-            var rawMax = Float.NEGATIVE_INFINITY
-            for (i in rawMotionValues.indices) {
-                if (rawMotionTs[i] >= rawMinT) {
-                    val value = rawMotionValues[i]
-                    if (value < rawMin) rawMin = value
-                    if (value > rawMax) rawMax = value
-                }
-            }
-            val stableRawRange = if (rawMin <= rawMax) rawMax - rawMin else Float.POSITIVE_INFINITY
-            if (stableDiff < 819f && stableRawRange < 500f) {
-                motionFlag = false
-                _signalQuality.value = SignalState.MEASURING
-            }
+            // 体动期间跳过所有信号处理（滤波器、缓冲区写入、特征提取全部暂停）
+            if (motionFlag) return
         }
-        // 体动期间跳过所有信号处理（滤波器、缓冲区写入、特征提取全部暂停）
-        if (motionFlag) return
         // ADC饱和保护：跳过近满量程或零的采样点，避免平顶信号污染滤波器
         if (rawX >= 4085f || rawX <= 10f) return
 
@@ -375,6 +395,14 @@ class Processor(private val fsHz: Int) {
                 lastCleanPeakBpmTimeMs = t
             }
         }
+        val templateEnhancement = heartbeatTemplateEnhancer.next(
+            value = cleanHeart,
+            timeMs = t,
+            detectedPeakTimeMs = if (cleanHeartDetection.detected) cleanHeartDetection.peakTimeMs else null
+        )
+        if (templateEnhancement.peakProcessed) {
+            _heartTemplateStatus.value = templateEnhancement
+        }
         val rpmZc = zeroCrossRpm.next(resp, t)
         val respCycleDetection = respCycleRateDetector.next(resp, t)
         val signalActive = true
@@ -384,8 +412,7 @@ class Processor(private val fsHz: Int) {
         respDisplayBuf.add(t, if (signalActive) resp else 0f)  // 原始呼吸信号，无归一化
         hrBuf.add(t, if (signalActive) hrDisplay else 0f)    // 原始心率信号，无归一化
         cleanHeartBuf.add(t, if (signalActive) cleanHeart else 0f)
-
-        cleanHeartBuf.add(t, if (signalActive) cleanHeart else 0f)
+        enhancedHeartBuf.add(t, if (signalActive && templateEnhancement.ready) templateEnhancement.value else 0f)
 
         var thresholdPeakDetected = false
         var dualPeakBpmThisSample: Float? = null
@@ -433,6 +460,10 @@ class Processor(private val fsHz: Int) {
             heartEnvelope = heartEnvelope,
             cleanHeart = cleanHeart,
             cleanHeartEnvelope = cleanHeartEnvelope,
+            heartTemplateEnhanced = templateEnhancement.value,
+            heartTemplateQuality = templateEnhancement.quality,
+            heartTemplateCycles = templateEnhancement.cycles,
+            heartTemplateReady = templateEnhancement.ready,
             normHr = normHr,
             windowedPeak = windowedHeartDetection.detected,
             windowedBpm = windowedHeartDetection.bpm,
@@ -539,6 +570,7 @@ class Processor(private val fsHz: Int) {
         respDisplayBuf.clear()
         hrBuf.clear()
         cleanHeartBuf.clear()
+        enhancedHeartBuf.clear()
         zeroCrossBpm = null
         prevHrRaw = 0f
         lastHrZeroT = 0L
@@ -572,6 +604,8 @@ class Processor(private val fsHz: Int) {
         cleanHeartLPF2.clear()
         cleanHeartSmooth.clear()
         cleanHeartEnvelopeSmooth.clear()
+        heartbeatTemplateEnhancer.clear()
+        _heartTemplateStatus.value = HeartTemplateEnhancement()
         heartSep.clear()
         hrPeakDetector.clear()
         windowedHeartPeakDetector.clear()
@@ -583,6 +617,7 @@ class Processor(private val fsHz: Int) {
         lastCleanPeakBpm = null
         lastCleanPeakBpmTimeMs = 0L
         motionFlag = false; motionEndTime = 0L; motionAbsBuf.clear(); motionRawBuf.clear()
+        lastBypassMotionDetection = false
         _signalQuality.value = SignalState.MEASURING
         breathDetector.clear()
         zeroCrossRpm.clear()
