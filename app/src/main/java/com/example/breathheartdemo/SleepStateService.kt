@@ -25,34 +25,37 @@ class SleepStateService(
     private val windowSeconds: Int = 330
 ) {
     private val extractor = SleepFeatureExtractor()
+    private val inputAdapter = SleepModelInputAdapter(fsHz = fsHz, windowSeconds = windowSeconds)
     private val config: SleepModelConfig by lazy { loadConfig() }
     private val env: OrtEnvironment by lazy { OrtEnvironment.getEnvironment() }
     private val session: OrtSession by lazy {
         env.createSession(context.assets.open(MODEL_ASSET).readBytes(), OrtSession.SessionOptions())
     }
 
-    fun predict(processor: Processor, rates: Rates): SleepStateResult {
-        val raw = recent(processor.rawBuf, windowSeconds)
-        val respiration = recent(processor.respBuf, windowSeconds)
-        val heart = recent(processor.hrBuf, windowSeconds)
-        val timestampMs = raw.timestamps.lastOrNull()
-
-        val required = fsHz * windowSeconds
-        val available = minOf(raw.values.size, respiration.values.size, heart.values.size)
-        if (available < required) {
-            val collectedSeconds = available / max(1f, fsHz.toFloat())
+    fun predict(processor: Processor, @Suppress("UNUSED_PARAMETER") rates: Rates): SleepStateResult {
+        if (windowSeconds != config.seqLen * EPOCH_SECONDS) {
             return unknown(
-                code = 1001,
-                message = "data not enough: %.1fs/%.0fs collected".format(
-                    collectedSeconds,
-                    windowSeconds.toFloat()
-                ),
-                timestampMs = timestampMs
+                code = 1005,
+                message = "model window mismatch: ${config.seqLen} x ${EPOCH_SECONDS}s",
+                timestampMs = null
             )
+        }
+        val modelInput = when (val prepared = inputAdapter.prepare(
+            heartBuffer = processor.cleanHeartBuf,
+            respirationBuffer = processor.respBuf
+        )) {
+            is SleepModelInputResult.Ready -> prepared.window
+            is SleepModelInputResult.Invalid -> {
+                return unknown(
+                    code = prepared.error.code,
+                    message = prepared.error.message,
+                    timestampMs = prepared.error.timestampMs
+                )
+            }
         }
 
         return try {
-            val features = buildFeatureTensor(heart.values, respiration.values)
+            val features = buildFeatureTensor(modelInput.heart, modelInput.respiration)
             val normalized = normalize(features, config)
             val tensor = OnnxTensor.createTensor(
                 env,
@@ -73,14 +76,14 @@ class SleepStateService(
                 stateName = if (isSleep) "睡眠" else "清醒",
                 confidence = probSleep,
                 modelVersion = MODEL_VERSION,
-                message = "success",
-                timestampMs = timestampMs
+                message = "success: cleanHeart + resp, 11 x 30s",
+                timestampMs = modelInput.timestampMs
             )
         } catch (e: Exception) {
             unknown(
                 code = 1005,
                 message = e.message ?: "model error",
-                timestampMs = timestampMs
+                timestampMs = modelInput.timestampMs
             )
         }
     }

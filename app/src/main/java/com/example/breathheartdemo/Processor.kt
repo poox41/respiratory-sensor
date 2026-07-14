@@ -50,6 +50,10 @@ class Processor(private val fsHz: Int) {
     private val cleanHeartSmooth = MovingAverage(windowSize = 3)
     private val cleanHeartEnvelopeSmooth = MovingAverage(windowSize = maxOf(1, fsHz))
     private val heartbeatTemplateEnhancer = HeartbeatTemplateEnhancer(fsHz = fsHz)
+    // Observation only: logged for calibration, never gates signals or rates.
+    private val presenceObserver = PresenceObserver(fsHz = fsHz)
+    private val _presenceObservation = MutableStateFlow(PresenceObserver.Observation())
+    val presenceObservation: StateFlow<PresenceObserver.Observation> = _presenceObservation
 
     // HR display normalization: 5s sliding window (250 samples at 50Hz)
     private val NORM_WINDOW = fsHz * 5
@@ -266,10 +270,13 @@ class Processor(private val fsHz: Int) {
             motionRawBuf.add(t, rawX)
             if (!motionFlag) {
                 val (motionTs, motionValues) = motionAbsBuf.snapshot()
-                val minT = t - 1000L; var peakDiff = 0f
+                val minT = t - 2000L
+                var peakDiff = 0f
+                var rapidChangeCount = 0
                 for (i in motionValues.indices) {
-                    if (motionTs[i] >= minT && motionValues[i] > peakDiff) {
-                        peakDiff = motionValues[i]
+                    if (motionTs[i] >= minT) {
+                        if (motionValues[i] > peakDiff) peakDiff = motionValues[i]
+                        if (motionValues[i] > 160f) rapidChangeCount++
                     }
                 }
                 val (rawMotionTs, rawMotionValues) = motionRawBuf.snapshot()
@@ -285,33 +292,31 @@ class Processor(private val fsHz: Int) {
                         rawMotionCount++
                     }
                 }
-                val rawRange = if (rawMotionCount >= fsHz && rawMin <= rawMax) rawMax - rawMin else 0f
-                if (peakDiff > 1638f || rawRange > 650f) {
+                val rawRange = if (rawMotionCount >= fsHz * 2 && rawMin <= rawMax) rawMax - rawMin else 0f
+                // Large but smooth abdominal respiration is not motion. Enter
+                // motion state only for a sharp jump, or when a large pressure
+                // excursion also contains several rapid changes.
+                val suddenMotion = peakDiff > 240f
+                val irregularLargeMotion = rawRange > 1200f && rapidChangeCount >= 3
+                if (suddenMotion || irregularLargeMotion) {
                     motionFlag = true
-                    motionEndTime = t + 15000L
+                    motionEndTime = t + 3000L
                     _signalQuality.value = SignalState.MOTION
                 }
             } else if (t >= motionEndTime) {
                 val (motionTs, motionValues) = motionAbsBuf.snapshot()
-                val minT = t - 2000L; var stableDiff = 0f
+                val minT = t - 2000L
+                var stableDiff = 0f
+                var rapidChangeCount = 0
                 for (i in motionValues.indices) {
-                    if (motionTs[i] >= minT && motionValues[i] > stableDiff) {
-                        stableDiff = motionValues[i]
+                    if (motionTs[i] >= minT) {
+                        if (motionValues[i] > stableDiff) stableDiff = motionValues[i]
+                        if (motionValues[i] > 160f) rapidChangeCount++
                     }
                 }
-                val (rawMotionTs, rawMotionValues) = motionRawBuf.snapshot()
-                val rawMinT = t - 2000L
-                var rawMin = Float.POSITIVE_INFINITY
-                var rawMax = Float.NEGATIVE_INFINITY
-                for (i in rawMotionValues.indices) {
-                    if (rawMotionTs[i] >= rawMinT) {
-                        val value = rawMotionValues[i]
-                        if (value < rawMin) rawMin = value
-                        if (value > rawMax) rawMax = value
-                    }
-                }
-                val stableRawRange = if (rawMin <= rawMax) rawMax - rawMin else Float.POSITIVE_INFINITY
-                if (stableDiff < 819f && stableRawRange < 500f) {
+                // Recovery depends on the absence of rapid/irregular changes,
+                // not on total pressure range, so smooth breathing can resume.
+                if (stableDiff < 200f && rapidChangeCount <= 1) {
                     motionFlag = false
                     _signalQuality.value = SignalState.MEASURING
                 }
@@ -363,6 +368,8 @@ class Processor(private val fsHz: Int) {
         )
         val cleanHeart = cleanHeartSmooth.next(cleanHeartRaw)
         val cleanHeartEnvelope = cleanHeartEnvelopeSmooth.next(kotlin.math.abs(cleanHeartRaw))
+        val presenceObservation = presenceObserver.next(cleanHeart, cleanHeartEnvelope, t)
+        _presenceObservation.value = presenceObservation
         // 过零检测BPM：独立于normHr和DualSmoother，基于hrRaw的上升沿过零
         if (prevHrRaw < 0f && hrF >= 0f && (t - lastHrZeroT) > 250L) {
             if (lastHrZeroT > 0L) {
@@ -479,7 +486,11 @@ class Processor(private val fsHz: Int) {
             rpm = _rates.value.rpm,
             rpmZc = rpmZc,
             respCycle = respCycleDetection.crossing,
-            cycleRpm = respCycleDetection.rpm
+            cycleRpm = respCycleDetection.rpm,
+            presenceState = presenceObservation.state.name,
+            presenceScore = presenceObservation.score,
+            heartEnvelope10s = presenceObservation.heartEnvelope10s,
+            heartStd10s = presenceObservation.heartStd10s
         )
 
 
@@ -617,6 +628,7 @@ class Processor(private val fsHz: Int) {
         lastCleanPeakBpm = null
         lastCleanPeakBpmTimeMs = 0L
         motionFlag = false; motionEndTime = 0L; motionAbsBuf.clear(); motionRawBuf.clear()
+        presenceObserver.reset(); _presenceObservation.value = PresenceObserver.Observation()
         lastBypassMotionDetection = false
         _signalQuality.value = SignalState.MEASURING
         breathDetector.clear()

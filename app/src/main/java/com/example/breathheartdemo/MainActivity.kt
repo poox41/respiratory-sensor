@@ -983,9 +983,9 @@ private fun sleepStateText(result: SleepStateResult?, analyzing: Boolean): Strin
     if (result == null) return "等待判断"
 
     return when (result.code) {
-        0 -> "当前状态：${result.stateName}，置信度 ${"%.0f".format(result.confidence * 100f)}%"
+        0 -> "模型试验输出：${result.stateName}，置信度 ${"%.0f".format(result.confidence * 100f)}%（待真实睡眠标签验证）"
         1001 -> "当前采集数据不足，请继续采集后重试（${result.message}）"
-        1002 -> "当前数据暂无法判断：信号质量差"
+        1002 -> "当前数据暂无法判断：信号质量差（${result.message}）"
         else -> "状态识别失败：${result.message}"
     }
 }

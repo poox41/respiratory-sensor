@@ -34,7 +34,8 @@ class SensorDataLogger(private val context: Context) {
                 "windowedPeak,windowedBpm,periodicBpm,periodicQuality," +
                 "cleanPeriodicBpm,cleanPeriodicQuality,cleanPeak,cleanPeakBpm," +
                 "thresholdPeak,dualPeakBpm,bpm,rpm,rpm_zc," +
-                "respCycle,cycleRpm"
+                "respCycle,cycleRpm," +
+                "presenceState,presenceScore,heartEnvelope10s,heartStd10s"
         )
         writer?.newLine()
         isLogging = true
@@ -77,7 +78,11 @@ class SensorDataLogger(private val context: Context) {
         rpm: Float? = null,
         rpmZc: Float? = null,
         respCycle: Boolean,
-        cycleRpm: Float?
+        cycleRpm: Float?,
+        presenceState: String,
+        presenceScore: Float?,
+        heartEnvelope10s: Float?,
+        heartStd10s: Float?
     ) {
         if (!isLogging || writer == null) return
         try {
@@ -118,7 +123,11 @@ class SensorDataLogger(private val context: Context) {
                 write(rpm?.toString() ?: ""); write(",")
                 write(rpmZc?.toString() ?: ""); write(",")
                 write(if (respCycle) "1" else "0"); write(",")
-                write(cycleRpm?.toString() ?: "")
+                write(cycleRpm?.toString() ?: ""); write(",")
+                write(presenceState); write(",")
+                write(presenceScore?.toString() ?: ""); write(",")
+                write(heartEnvelope10s?.toString() ?: ""); write(",")
+                write(heartStd10s?.toString() ?: "")
                 newLine()
             }
         } catch (_: Exception) {
