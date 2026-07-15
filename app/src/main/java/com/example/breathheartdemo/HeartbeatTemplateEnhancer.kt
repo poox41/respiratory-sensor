@@ -35,6 +35,11 @@ class HeartbeatTemplateEnhancer(
     private val maxCycleMs: Long = 1_500L,
     private val minimumCorrelation: Float = 0.35f,
     private val maximumAlignmentShiftPoints: Int = 6,
+    /**
+     * Display-only morphology blend.  0 uses the robust median template;
+     * 1 uses the retained real cycle most representative of its peers.
+     */
+    private val representativeCycleBlend: Float = 0.75f,
     /** Display-only slew limit; at 50 Hz this permits at most 0.28 per sample. */
     private val maximumDisplaySlopePerSecond: Float = 14f
 ) {
@@ -185,28 +190,62 @@ class HeartbeatTemplateEnhancer(
         for (cycle in alignedCycles) cycles.addLast(cycle)
 
         val medianTemplate = pointwiseMedian(alignedCycles)
-        val averaged = FloatArray(templatePoints)
-        for (i in averaged.indices) {
+        val robustTemplate = FloatArray(templatePoints)
+        for (i in robustTemplate.indices) {
             val previous = medianTemplate[(i - 1 + templatePoints) % templatePoints]
             val next = medianTemplate[(i + 1) % templatePoints]
-            averaged[i] = (previous + 2f * medianTemplate[i] + next) / 4f
+            robustTemplate[i] = (previous + 2f * medianTemplate[i] + next) / 4f
         }
 
-        val mean = averaged.average().toFloat()
+        // Preserve the sharper peak/trough morphology of a real retained
+        // cycle without choosing an arbitrary or extreme beat.  The medoid is
+        // the cycle with the highest mean similarity to all other retained
+        // cycles.  This branch remains display-only and never feeds BPM.
+        val representativeCycle = representativeMedoid(alignedCycles, robustTemplate)
+        val blend = representativeCycleBlend.coerceIn(0f, 1f)
+        val displayShape = FloatArray(templatePoints) { index ->
+            (1f - blend) * robustTemplate[index] + blend * representativeCycle[index]
+        }
+
+        val mean = displayShape.average().toFloat()
         var maxAbs = 0f
-        for (i in averaged.indices) {
-            averaged[i] -= mean
-            maxAbs = maxOf(maxAbs, abs(averaged[i]))
+        for (i in displayShape.indices) {
+            displayShape[i] -= mean
+            maxAbs = maxOf(maxAbs, abs(displayShape[i]))
         }
         if (maxAbs > 1e-6f) {
-            for (i in averaged.indices) averaged[i] /= maxAbs
+            for (i in displayShape.indices) displayShape[i] /= maxAbs
         }
-        closePeriodicSeam(averaged)
-        template = averaged
+        closePeriodicSeam(displayShape)
+        template = displayShape
 
         var qualitySum = 0f
-        for (cycle in cycles) qualitySum += abs(correlation(cycle, averaged))
+        for (cycle in cycles) qualitySum += abs(correlation(cycle, displayShape))
         templateQuality = (qualitySum / cycles.size.toFloat()).coerceIn(0f, 1f)
+    }
+
+    private fun representativeMedoid(
+        sourceCycles: List<FloatArray>,
+        reference: FloatArray
+    ): FloatArray {
+        if (sourceCycles.size == 1) return sourceCycles.first().copyOf()
+        var bestIndex = 0
+        var bestMeanSimilarity = Float.NEGATIVE_INFINITY
+        for (first in sourceCycles.indices) {
+            var similaritySum = 0f
+            for (second in sourceCycles.indices) {
+                if (first == second) continue
+                similaritySum += abs(correlation(sourceCycles[first], sourceCycles[second]))
+            }
+            val meanSimilarity = similaritySum / (sourceCycles.size - 1).toFloat()
+            if (meanSimilarity > bestMeanSimilarity) {
+                bestMeanSimilarity = meanSimilarity
+                bestIndex = first
+            }
+        }
+        val result = sourceCycles[bestIndex].copyOf()
+        if (correlation(result, reference) < 0f) invert(result)
+        return result
     }
 
     private fun pointwiseMedian(sourceCycles: List<FloatArray>): FloatArray {

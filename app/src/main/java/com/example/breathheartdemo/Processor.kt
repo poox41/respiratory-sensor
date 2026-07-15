@@ -49,6 +49,12 @@ class Processor(private val fsHz: Int) {
     private val cleanHeartLPF2 = BiquadFilter.lowPass(cutoffHz = 4f, sampleRate = fsHz)
     private val cleanHeartSmooth = MovingAverage(windowSize = 3)
     private val cleanHeartEnvelopeSmooth = MovingAverage(windowSize = maxOf(1, fsHz))
+    // Display-only detail path selected by the offline morphology study.
+    // It is intentionally separate from cleanHeart, peak detection and BPM.
+    private val templateDetailHPF1 = BiquadFilter.highPass(cutoffHz = 1f, sampleRate = fsHz)
+    private val templateDetailHPF2 = BiquadFilter.highPass(cutoffHz = 1f, sampleRate = fsHz)
+    private val templateDetailLPF1 = BiquadFilter.lowPass(cutoffHz = 10f, sampleRate = fsHz)
+    private val templateDetailLPF2 = BiquadFilter.lowPass(cutoffHz = 10f, sampleRate = fsHz)
     private val heartbeatTemplateEnhancer = HeartbeatTemplateEnhancer(fsHz = fsHz)
     // Observation only: logged for calibration, never gates signals or rates.
     private val presenceObserver = PresenceObserver(fsHz = fsHz)
@@ -368,6 +374,9 @@ class Processor(private val fsHz: Int) {
         )
         val cleanHeart = cleanHeartSmooth.next(cleanHeartRaw)
         val cleanHeartEnvelope = cleanHeartEnvelopeSmooth.next(kotlin.math.abs(cleanHeartRaw))
+        val heartTemplateInput = templateDetailLPF2.next(
+            templateDetailLPF1.next(templateDetailHPF2.next(templateDetailHPF1.next(xF)))
+        )
         val presenceObservation = presenceObserver.next(cleanHeart, cleanHeartEnvelope, t)
         _presenceObservation.value = presenceObservation
         // 过零检测BPM：独立于normHr和DualSmoother，基于hrRaw的上升沿过零
@@ -403,7 +412,7 @@ class Processor(private val fsHz: Int) {
             }
         }
         val templateEnhancement = heartbeatTemplateEnhancer.next(
-            value = cleanHeart,
+            value = heartTemplateInput,
             timeMs = t,
             detectedPeakTimeMs = if (cleanHeartDetection.detected) cleanHeartDetection.peakTimeMs else null
         )
@@ -467,6 +476,7 @@ class Processor(private val fsHz: Int) {
             heartEnvelope = heartEnvelope,
             cleanHeart = cleanHeart,
             cleanHeartEnvelope = cleanHeartEnvelope,
+            heartTemplateInput = heartTemplateInput,
             heartTemplateEnhanced = templateEnhancement.value,
             heartTemplateQuality = templateEnhancement.quality,
             heartTemplateCycles = templateEnhancement.cycles,
@@ -615,6 +625,10 @@ class Processor(private val fsHz: Int) {
         cleanHeartLPF2.clear()
         cleanHeartSmooth.clear()
         cleanHeartEnvelopeSmooth.clear()
+        templateDetailHPF1.clear()
+        templateDetailHPF2.clear()
+        templateDetailLPF1.clear()
+        templateDetailLPF2.clear()
         heartbeatTemplateEnhancer.clear()
         _heartTemplateStatus.value = HeartTemplateEnhancement()
         heartSep.clear()

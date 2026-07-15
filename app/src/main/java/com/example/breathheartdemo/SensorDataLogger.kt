@@ -29,7 +29,8 @@ class SensorDataLogger(private val context: Context) {
         writer?.write(
             "time_ms,time_str,rawX,xDc,dc,xF,resp," +
                 "hrRaw,hrF1,hrF,hrFilt,hrCalc,hrDisplay,heartCandidate,heartEnvelope," +
-                "cleanHeart,cleanHeartEnvelope,heartTemplateEnhanced,heartTemplateQuality," +
+                "cleanHeart,cleanHeartEnvelope,heartTemplateInput," +
+                "heartTemplateEnhanced,heartTemplateQuality," +
                 "heartTemplateCycles,heartTemplateReady,normHr," +
                 "windowedPeak,windowedBpm,periodicBpm,periodicQuality," +
                 "cleanPeriodicBpm,cleanPeriodicQuality,cleanPeak,cleanPeakBpm," +
@@ -59,6 +60,7 @@ class SensorDataLogger(private val context: Context) {
         heartEnvelope: Float,
         cleanHeart: Float,
         cleanHeartEnvelope: Float,
+        heartTemplateInput: Float,
         heartTemplateEnhanced: Float,
         heartTemplateQuality: Float?,
         heartTemplateCycles: Int,
@@ -104,6 +106,7 @@ class SensorDataLogger(private val context: Context) {
                 write(heartEnvelope.toString()); write(",")
                 write(cleanHeart.toString()); write(",")
                 write(cleanHeartEnvelope.toString()); write(",")
+                write(heartTemplateInput.toString()); write(",")
                 write(heartTemplateEnhanced.toString()); write(",")
                 write(heartTemplateQuality?.toString() ?: ""); write(",")
                 write(heartTemplateCycles.toString()); write(",")

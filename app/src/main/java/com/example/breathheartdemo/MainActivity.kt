@@ -611,11 +611,12 @@ fun AppScreen() {
             }
 
             item {
-                ChartCard(title = "周期增强心搏展示信号（非原始波形）") {
+                ChartCard(title = "周期增强心搏展示信号（75%代表周期保形，非原始波形）") {
                     Column {
                         Text(
                             text = if (heartTemplateStatus.ready) {
-                                "最近 ${heartTemplateStatus.cycles} 个有效心搏周期同步叠加；" +
+                                "最近 ${heartTemplateStatus.cycles} 个有效心搏周期同步对齐；" +
+                                    "75%代表性真实周期＋25%稳健模板；" +
                                     "模板一致性 " + String.format(
                                         "%.2f",
                                         heartTemplateStatus.quality ?: 0f
@@ -643,8 +644,8 @@ fun AppScreen() {
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "仅用于突出周期形态；它由 cleanHeart 周期对齐、归一化、模板重构和" +
-                                "相位拼接连续化得到，" +
+                            text = "仅用于突出周期形态；它由独立的 1–10 Hz 展示细节通道、" +
+                                "真实峰时刻对齐、代表周期筛选、75%保形混合和相位拼接连续化得到，" +
                                 "不得作为原始提取波形，也不参与 BPM 计算。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
