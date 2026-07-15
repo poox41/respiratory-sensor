@@ -1,0 +1,965 @@
+===== PDF PAGE 1 =====
+www.afm-journal.de
+© 2022 Wiley-VCH GmbH2210580 (1 of 12)
+Real-Time Non-Driving Behavior Recognition Using Deep 
+Learning-Assisted Triboelectric Sensors in Conditionally 
+Automated Driving
+Haodong Zhang, Haiqiu Tan, Wuhong Wang,* Zhihao Li, Facheng Chen, Xiaobei Jiang, 
+Xiao Lu, Yanqiang Hu, Lizhou Li, Jie Zhang, Yihao Si, Xiaoli Wang,* and Klaus Bengler
+Real-time recognition of non-driving behaviors is of great importance in 
+conditionally automated driving, as it determines the takeover time budget, 
+which in turn has a huge impact on the performance of the takeover. Here, a 
+novel real-time non-driving behavior recognition system (RNBRS) integrating 
+self-powered, low-cost, easy-to-manufacture triboelectric sensors, and a deep 
+learning model is proposed. The structure, working mechanism, and electrical 
+characteristics of triboelectric sensors are investigated and analyzed. Through 
+the ingenious structural design of single-electrode triboelectric sensors and 
+driving simulation experiments under conditional automated driving, non-
+driving behaviors are captured in the form of electrical signals. A well-trained 
+long short-term memory network model is adopted to recognize the five most 
+typical non-driving behaviors, including phone, console touchpad, driving, 
+monitoring driving, and no operation, and test accuracy of 93.5% is achieved. 
+Demonstration of a set of controlled experiments shows that RNBRS enables 
+vehicles with conditional automation to dynamically adjust takeover time 
+budget based on driver behavior, therefore significantly improving both safety 
+and stability of takeover. This study opens new frontiers for the development 
+of self-powered electronics and inspires new thoughts on human-machine 
+interaction and the safety of autonomous vehicles.
+DOI: 10.1002/adfm.202210580
+H. Zhang, H. Tan, W. Wang, Z. Li, X. Jiang, Y . Hu, L. Li, J. Zhang, 
+Y . Si, X. Wang
+School of Mechanical Engineering
+Beijing Institute of Technology
+Beijing 100081, China
+E-mail: wangwh@bit.edu.cn; xiaoli_wang@bit.edu.cn
+F. Chen
+Department of Traffic Management School
+People’s Public Security University of China
+Beijing 100038, China
+X. Lu
+Shanghai Key Laboratory of Intelligent Manufacturing and Robotics
+School of Mechatronic Engineering and Automation
+Shanghai University
+Shanghai 200444, China
+K. Bengler
+Department of Mechanical Engineering
+Technical University of Munich
+85747, Garching, Germany
+1. Introduction
+Recently, autonomous driving technology 
+has attracted widespread attention around 
+the world, and highly automated driving 
+systems are considered to be a promising 
+measure to improve traffic safety and 
+transportation efficiency.
+[1] According to 
+SAE J3016_202104, [2] driving automation 
+systems consist of six levels, namely Level 
+0: No Driving Automation, Level 1: Driver 
+Assistance, Level 2: Partial Driving Auto-
+mation, Level 3: Conditional Driving Auto-
+mation, Level 4: High Driving Automation, 
+and Level 5: Full Driving Automation. For 
+Level 1 to Level 3 driving automation sys-
+tems, when the driving automation sys-
+tems fail or reach the functional limit, 
+the driver needs to take over the control 
+of the vehicle to ensure the safe opera-
+tion of the vehicle. As the level of driving 
+automation systems rises to Level 4 and 
+Level 5, drivers are no longer required to 
+devote their attention to driving-related 
+tasks including control, supervision, and 
+takeover of the vehicle, meaning they are completely free from 
+the driving task. Due to the limitations of current technology 
+and the debate on traffic safety ethics, the realization of high 
+driving automation (Level 4) and full driving automation (Level 
+5) will still take a considerable period of time. Therefore, for a 
+long time in the future, most of the vehicles on the road will be 
+equipped with Level 1 to Level 3 driving automation systems.
+[3] 
+These vehicles require the driver to assume responsibility for 
+the takeover of the vehicle when necessary to ensure the safe 
+operation of the vehicles.
+Takeover is a difficult driving operation. Drivers need to com-
+plete a series of tasks such as situational awareness recovery, 
+decision-making, and operational preparation within a limited 
+time, and finally, safely take over the control of the vehicle to 
+ensure the proper operation of the vehicle.
+[4] How long the 
+driver needs to prepare to ensure the safety of the takeover is 
+one of the current research hotspots.
+[5–7] Previous studies have 
+shown that the non-driving task is one of the key factors in 
+determining the driver’s required takeover preparation time.
+[8] 
+When it comes to taking over the vehicle, the non-driving task 
+the driver is performing determines how much effort it takes 
+ReseaRch aRticle
+ 
+The ORCID identification number(s) for the author(s) of this article 
+can be found under https://doi.org/10.1002/adfm.202210580.
+Adv. Funct. Mater. 2023, 33, 2210580
+
+===== PDF PAGE 2 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (2 of 12) © 2022 Wiley-VCH GmbH
+to prepare for the takeover. [9] For instance, when the system 
+issues a takeover request (TOR), if the driver is performing a 
+non-driving task (such as playing on the phone), he or she will 
+have to put in more effort to complete the preparations such 
+as eye shifting from the phone to road and situational aware-
+ness recovery than monitoring the road. As a result, the driver 
+needs more time for the preparation of the takeover.
+[10] There-
+fore, realizing real-time recognition of the driver’s non-driving 
+behavior can dynamically adjust the takeover time budget for 
+takeover preparation required by drivers, which is of great sig-
+nificance to the safety of the vehicle.
+A variety of sensors have been designed and used for the 
+study of non-driving behavior recognition. These sensors can 
+be broadly divided into two categories, contact sensors and 
+non-contact sensors. Cameras are representatives of non-con-
+tact sensors and are widely used in the study of driving behav-
+iors,
+[11–13] which do not interfere with the drivers, and combined 
+with advanced algorithms can achieve a relatively high recogni-
+tion rate.
+[14,15] However, cameras are susceptible to light inten-
+sity, vibration, and blocking objects, and numerous computing 
+resources are required to process the data collected by the cam-
+eras.
+[16,17] Physiological signal acquisition sensors and motion 
+tracking sensors are representatives of the contact sensors, 
+which are worn on drivers to harvest physiological signals (such 
+as electroencephalogram (EEG), electrooculography (EOG), 
+electrocardiogram (ECG), and Electromyography (EMG)
+[18–22] 
+and the motion signals (such as acceleration, angular speed, 
+attitude angle, etc.)
+[23,24] of drivers. The advantages of contact 
+sensors lie in their environmental friendliness, but they are 
+attached to the drivers causing great interference in driving, 
+and cannot recognize subtle movements of drivers.
+[25]
+Triboelectric nanogenerators (TENGs), [26,27] an emerging 
+energy harvesting technology, have attracted tremendous atten-
+tion around the world since their invention. TENGs based on 
+triboelectric effect and electrostatic induction effectively col-
+lect and convert micromechanical energy into electricity. [28,29] 
+Due to simple fabrication, low cost, high sensitivity, and self-
+power, the TENGs-based sensors
+[30–32] have been widely used in 
+various fields such as human-computer interaction, [33] respira-
+tory,[34] vibration and sound detection, [35,36] tactile and pressure 
+sensing,[37,38] wearable detection devices[39–41] and etc. Moreover, 
+the TENG exhibits high electric output in low frequency and 
+microscale motion detection that can catch tiny signals from 
+the human body.
+[42–44] Researchers have conducted many excel-
+lent studies on TENG-based sensors for human motion (such 
+as hand gestures, breathing, sitting posture, gait, lip motion, 
+waist motion, etc.) monitoring and recognition.
+[45–54] However, 
+there is little research reporting the use of TENG-based sen-
+sors for driver behavior recognition in conditionally automated 
+driving. Considering that every second of the driver’s tiny 
+movement is critical to the safety of the vehicle in the process 
+of driving, TENGs with their high sensitivity and micro-scale 
+motion detection capability show great potential in autono-
+mous driving.
+In this article, we propose a real-time non-driving behavior 
+recognition system (RNBRS) assisted by TENGs and deep 
+learning for recognizing and monitoring the typical non-driving 
+behaviors of drivers in conditionally automated driving. Tribo-
+electric sensors, placed on hands, including TENGs attached to 
+phalanxes and TENGs above knuckles, are capable of capturing 
+bend-straighten and approach-separation signals. A universal 
+LSTM model is adopted to realize the real-time recognition of 
+the non-driving behaviors of different drivers, and the test accu-
+racy reaches 93.5%. Triboelectric sensors enable RNBRS to col-
+lect the signals of non-driving behaviors in an interference-free 
+way, and a universal LSTM model enables RNBRS to cope with 
+individual differences of drivers, improving the general appli-
+cability of the system. Hence, RNBRS dynamically adjusts the 
+takeover time budget for conditionally automated vehicles based 
+on the driver’s non-driving behavior. This takeover time budget 
+provides drivers proper time to recover situation awareness and 
+driving ability, greatly improving the safety and stability of the 
+takeover. This work has potential value in applications in effec-
+tive human-machine interaction and smart cockpit.
+This article is arranged as follows: the components and 
+workflow of the RNBRS, structure, and mechanism of the tri-
+boelectric sensors attached on hand are described in detail. 
+The fundamental characteristics of the triboelectric sensors 
+including TENGs attached to phalanxes and TENGs above 
+knuckles are investigated. An experiment is conducted on a 
+driving simulator to collect and analyze the triboelectric sensors 
+data and image data of five types of non-driving behaviors of 
+eight drivers, and to investigate the possibility of shallow fea-
+tures (amplitude, frequency, and holding time) in recognizing 
+the five types of behaviors. A non-driving behavior dataset is 
+built using triboelectric sensors data and image data, and then 
+the performances of well-trained multi-class classifiers based 
+on two feature engineering methods (manual feature extrac-
+tion and neural network-based feature extractor) are compared. 
+A set of controlled experiments are conducted to compare the 
+effect of the presence or absence of the RNBRS on the takeover 
+performance in conditionally automated driving. Three indica-
+tors are used to evaluate the takeover from the perspectives of 
+safety and stability.
+2. Results and Discussion
+2.1. Design of Real-Time Non-Driving Behavior Recognition 
+System and Triboelectric Sensors
+Here, we report a concept of the real-time non-driving behavior 
+recognition system (RNBRS) utilizing flexible triboelectric sen-
+sors to collect signals and use classifiers based on deep learning 
+technology to recognize non-driving behavior, as shown in 
+Figure 1a. RNBRS is mainly consisted of triboelectric sensors 
+(see details in Figure S1, Supporting Information), readout elec-
+tronics, and deep neural network classifiers. The flexible tribo-
+electric sensors are mounted on the phalanxes of each finger 
+(proximal, middle, and distal phalanxes for the index, middle, 
+ring fingers, and proximal, distal phalanxes for the thumb 
+and small fingers) to capture the non-driving behaviors of the 
+driver in conditionally automated driving. Taking a non-driving 
+behavior, drinking, as an example, when the driver is drinking, 
+the triboelectric sensors on the driver’s fingers detect the 
+movement and then generate corresponding electrical signals. 
+These electrical signals are stored and visualized by readout 
+electronics and transferred to the well-trained deep learning 
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 3 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (3 of 12) © 2022 Wiley-VCH GmbH
+Figure 1. The concept, structure, and mechanism of the real-time non-driving behavior recognition system aided by triboelectric sensors. a) Sche-
+matic illustration of the real-time non-driving behavior recognition system and its components. b) Structure scheme and working mechanism of the 
+triboelectric sensor. c) Electrical characteristics of triboelectric sensors placed on phalanxes. 1) One finger bent 90°, 2) One finger slowly bent 90°, 
+3) One finger bent 60°, 4) Two fingers bent 60°. d) Electrical characteristics of triboelectric sensors placed on knuckles, 1) Tap phone with one finger. 
+2) Tap the phone slowly with one finger. 3) Tap the phone with two fingers. 4) Tap the steering wheel with one finger. 5) Tap the bottle with one finger. 
+6) Tap the touchpad with one finger.
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 4 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (4 of 12) © 2022 Wiley-VCH GmbH
+classifiers. Finally, the results of RNBRS are fed back to the 
+vehicle with conditional driving automation, so that the vehicle 
+can understand the driver’s state in real-time and make corre-
+sponding adjustments in time.
+Figure 1b(2) displays the detailed structure scheme of triboe-
+lectric sensors. Our manufactured triboelectric sensors include 
+two parts, TENGs attached to phalanxes and TENGs above 
+knuckles. The TENGs placed on the phalanxes are used to cap-
+ture the electrical signals of the finger’s contact and separation 
+movement with other objects (such as mobile phone screens, 
+steering wheels, etc.). The TENGs placed above the knuckles are 
+used to capture the electrical signals of finger-bending move-
+ment. These sensors are fabricated from the most common 
+and basic materials using the typical single electrode structure 
+of TENGs. The triboelectrification layers are composed of three 
+layers, among which a piece of copper foil (50 µm) is attached 
+to polytetrafluoroethylene film (PTFE, 30 µm) serving as elec-
+trodes and PTFE acts as triboelectric polymers. A PI tape coated 
+on copper foil plays a role in removing unnecessary interfer -
+ence. Our triboelectric sensor with a simple structure and 
+ingenious design can fully collect the key information of the 
+drivers’ hands touching different objects and fingers bending. 
+The triboelectric sensor using a single-electrode mode also 
+simplifies the wiring arrangement and the sensor processing 
+process without causing interference to the driver as much as 
+possible.
+The working mechanism of electric signal generation for the 
+triboelectric sensor is shown in Figure 1b(1),(3). As shown in 
+Figure 1b(1), the detailed working mechanism of triboelectric 
+sensors attached to phalanxes (front side) is divided into four 
+stages. Take touching the screen of the phone as an example. 
+In stage I, when the finger completely touches the screen of the 
+phone, the PTFE film is in close contact with the screen of the 
+phone. At this moment, the generated negative charges on the 
+PTFE film and positive charges on the screen of the phone are 
+fully balanced. During stage II, once the finger starts to leave 
+the screen of the phone, electrons flow from the copper elec-
+trode to the ground to balance the potential difference between 
+PTFE film and ground. When the finger continues to leave the 
+screen of the phone to a certain distance (stage III), negative 
+charges on PTFE film are fully neutralized by positive charges 
+on copper, resulting in a zero potential difference between the 
+PTFE film and ground, and no electrons flow. Once the finger 
+approaches the screen of the phone again (stage IV), an oppo-
+site potential difference will be generated between the PTFE 
+film and the ground, and the electrons tend to flow back from 
+the ground to the electrode until the screen of the phone is in 
+full contact with the PTFE film. As the PTFE film and screen of 
+the phone are periodically contacted and separated, continuous 
+alternating voltages and currents are obtained. Figure 1b(1) 
+schematically depicts the process of flowing electrons of 
+triboelectric sensors above knuckles, which is similar to tribo-
+electric sensors attached to phalanxes (see details in Note S2, 
+Supporting Information).
+The electrical characteristics of the triboelectric sensors 
+are crucial for non-driving behavior recognition. Therefore, 
+a set of controlled variable experiments were conducted to 
+demonstrate and analyze the important characteristics of the 
+triboelectric sensor, as shown in Figure 1c,d. Figure 1c shows 
+the electrical signals produced by the triboelectric sensors 
+above the knuckles under different bending angles, different 
+bending speeds, and bending different numbers of fingers, 
+respectively. The same number of fingers bends toward the 
+palm at the same angles—the slower the speed, the longer the 
+holding time of electrical signals waveforms, and the smaller 
+the amplitude. The same number of fingers bend to the palm 
+at different angles with the same speed, the greater the angle, 
+the greater the amplitude of electrical signals. As for bending 
+the same degrees toward the palm at the same speed, the 
+amplitude of electrical signals increases with the number of 
+fingers.
+Figure 1d displays the electrical signals generated by the 
+triboelectric sensor attached to phalanxes at different speeds, 
+with different numbers of fingers and touching different 
+materials. To exclude interference from the backside, fingers 
+remain straight throughout the entire process of tapping. 
+Tap the same object with the same finger—the faster the tap, 
+the greater the amplitude, and the shorter the holding time 
+of the electrical signal generated. As for tapping the same 
+object at the same speed, the amplitude of the electrical signal 
+increases with the number of fingers. The electrical signals 
+generated from tapping different objects (screen of the phone, 
+steering wheel, plastic bottle, and touchpad of console) at the 
+same speed with the same finger vary in amplitude, showing 
+that the triboelectric sensors are sensitive to the different 
+objects.
+In addition, the electrical signals generated by the same tri-
+boelectric sensor on day 1 (first day of use) and on day 30 (after 
+30 days of use) are compared (as shown in Figure 1c,d). Taking 
+tapping the screen of the phone as an example, there is no sig-
+nificant difference in electrical signals between day 1 and day 
+30. In addition, combined with the other three durability test of 
+the triboelectric sensors shown in Figure S2 (Supporting Infor -
+mation), it proves that the triboelectric sensors have a stable 
+mechanical durability.
+2.2. Collection and Analysis of Electrical Signals Generated 
+by Non-Driving Behaviors
+We used triboelectric sensors to collect and analyze the data of 
+non-driving behaviors in the conditionally automated driving 
+environment, including four parts, namely data collection plat-
+form, participants, data collection, and data analysis.
+2.2.1. Data Collection Platform
+This experiment was conducted on a fixed-base driving simu-
+lator, as shown in Figure 2a. Simulated driving scenarios were 
+made up through SCANeR studio (A V Simulation), a driving 
+simulation software capable of simulating different driving 
+automation levels (range from L0 to L5) of vehicles (Figure S3, 
+Supporting Information). The vision system is a 100 inch 270° 
+surround screen (3840 × 2160 resolutions) with two projectors. 
+Data acquisition devices (Cdaq-9171 and NI 6002) were used to 
+collect electrical signals data of non-driving behaviors by the tri-
+boelectric sensors. A 14 inch laptop with LabVIEW was used to 
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 5 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (5 of 12) © 2022 Wiley-VCH GmbH
+visualize and store electrical signal data of non-driving behav-
+iors. A 720p HD camera (Logitech C922) situated on the right 
+side of the cabin was used for capturing the detailed motion 
+of drivers, and each frame of video was stamped with corre-
+sponding system time aiming to synchronize the image data 
+and electrical signals data of triboelectric sensors. An 11 inch 
+iPad (iPad Pro 2021) placed on the console served as a console 
+touchpad. Data from the driving simulator, data acquisition 
+device, and HD camera were recorded at 100, 1000, and 60 Hz, 
+respectively.
+2.2.2. Participants
+Existing research shows that driver group factors such as age 
+[1–3], gender[4–5], and driving experience[6–8] can signifi-
+cantly affect drivers’ takeover behavior. And because our system 
+(RNBRS) is used to optimize the takeover warning systems for 
+autonomous vehicles, in order to better verify our system in 
+improving takeover performance, we selected young males as 
+participant group. Eight male participants between the ages of 
+22 and 28 years old (Mean = 25.25 years and SD = 1.7 years) and 
+Figure 2. Collection and analysis of electrical signals generated by non-driving behavior. a) The configuration of the data collection platform. b–f) The 
+electrical signals of triboelectric sensors for Phone, Console Touchpad, Drinking, No Operation, and Monitoring Driving. g) 3D plots of electrical signals 
+generated by non-driving behavior signals from eight participants. h) The boxplot of the amplitude of electrical signals generated by eight non-driving 
+behaviors. i) The boxplot of the amplitude of electrical signals generated by five types of non-driving behaviors.
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 6 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (6 of 12) © 2022 Wiley-VCH GmbH
+their palm lengths between 18 and 20 cm (Mean = 18.96 cm and 
+SD = 0.67 cm) volunteered to take part in the experiment. Each 
+participant has normal or corrected-to-normal vision, reported 
+normal hearing, no simulation sickness, and has a valid driv-
+er’s license. Participation was voluntary and received no mone-
+tary compensation. The experiment is completed in a simulated 
+environment, and there are no safety risks. The triboelectric 
+sensors worn on hands are no safety concerns. Moreover, the 
+experiment was conducted with the consent of all participants 
+(Informed Consent Forms see Supporting Information), and 
+participants could withdraw from the experiment at any time 
+without reason.
+2.2.3. Data Collection
+Conditionally automated vehicles (Level 3) are capable of per -
+forming most driving tasks, as a result, drivers do not have to 
+devote their full attention to driving tasks as before. Instead of 
+fully focusing on driving tasks, drivers distribute their atten-
+tion on non-driving tasks. Manipulating the phone (denote as 
+Phone), manipulating the console touchpad (denote as Con-
+sole TouchPad), drinking water (denote as Drinking), doing 
+nothing (denote as No Operation), and holding the steering 
+wheel to monitor driving (denote as Monitoring Driving) are 
+five most typical non-driver behaviors.
+[24,55] These five types of 
+non-driving behaviors are all compound movements including 
+the contact separation of the fingertips and the bending and 
+straightening of the finger joints, in other words, five types of 
+non-driving behaviors are related to phalanxes and knuckles. 
+Drivers need to put in different efforts when they get involved 
+in these five types of non-driving behaviors, as a result, these 
+five types of non-driving behaviors have different degrees of 
+impact on drivers. The details of the above five types of non-
+driving behaviors are as follow.
+• Manipulating a phone mainly involves two kinds of motion, 
+tap and scroll. Therefore, Phone consists of two sub-catego-
+ries, Phone (Tap) and Phone (Scroll). Phone (Tap): Partici-
+pants are asked to text someone through a Chinese social 
+media application (Wechat). Phone (Scroll): Participants are 
+required to scroll up or down to browse videos on Tiktok. 
+Tiktok, covering a variety of short-form videos, is one of 
+the most popular mobile applications in China, as well as 
+globally.
+• Similar to the Phone, Console T ouchpad consists of two sub-
+categories, Console Touchpad (Tap) and Console Touchpad 
+(Scroll). Console Touchpad (Tap): Participants are assigned 
+to input a place name through the navigation system on the 
+console touchpad. Console Touchpad (Scroll): Participants 
+are required to find a certain place by scrolling the map on 
+the navigation system of the console touchpad.
+• Drinking: Participants are told to take up a plastic bottle of 
+water from the cup holder, and take a sip of water, finally put 
+the bottle back in its original place.
+• Monitoring Driving: Participants are asked to put their hands 
+on the steering wheel to monitor driving.
+• No-operation is made up of two sub-categories, namely No-
+operation (Hands on legs) and No-operation (Hands in the 
+air). No Operation (Hands on legs): Participants are asked to 
+put their hands on their legs. No Operation (Hands in the 
+air): Participants are asked to put their hands in the air.
+Each participant is asked to wear the triboelectric sensors 
+and conduct the experiment on the data collection platform for 
+≈20 min. During this time, participants are verbally informed 
+to complete tasks including Phone (Tap), Phone (Scroll), Con-
+sole Touchpad (Tap), Console Touchpad (Scroll), Driving, Moni-
+toring Driving, No Operation (Hands on legs), and No Opera-
+tion (Hands in the air), in random order. Corresponding data 
+from triboelectric sensors and the camera are collected, as 
+shown in Figure 2a. See Video S1 (Supporting Information) for 
+the video.
+2.2.4. Data Analysis
+To find effective features to identify five types of non-driving 
+behaviors, the triboelectric sensors data were analyzed in 
+combination with image data. Figure 2b–f shows one partici-
+pant’s electrical signals of triboelectric sensors under five dif -
+ferent types of non-driving behaviors. Electrical signals unveil 
+that Phone, Console TouchPad, and Drinking possess obvious 
+characteristics of amplitude, holding time, and frequency. 
+According to Figure 2b–d, the amplitude of Drinking is the 
+largest, the amplitude of Phone is the smallest, and the ampli-
+tude of Console TouchPad falls in between the two. For sub-
+categories in Phone and Console TouchPad, the amplitude of 
+scrolling has a greater amplitude than that of tapping. Drinking 
+shows the longest holding time, and there is no significant dif -
+ference in holding time between Phone and Console TouchPad. 
+But, the holding time of Phone (Scroll) and Console TouchPad 
+(Scroll) are respectively greater than those of Phone (Tap) and 
+Console TouchPad (Tap), respectively. No Operation and Moni-
+toring Driving are continuous behaviors, and thus, they do not 
+have the two characteristics of amplitude and frequency. How-
+ever, the floating range of their electrical signals is significantly 
+smaller than the Phone, Console TouchPad, and Drinking.
+Through the above analysis, it can be seen that No Opera-
+tion and Monitoring Driving have no feature of the frequency 
+and the holding time. The frequency and the holding time 
+of Phone, Console TouchPad, and Drinking are affected by 
+driving tasks and driver habits, therefore, showing no sub-
+stantial value in recognizing non-driving behaviors. As a 
+result, among the three features of amplitude, frequency, and 
+holding time, the amplitude is the only feature that has the 
+potential to recognize the five types of non-driving behaviors. 
+Although No Operation and Monitoring Driving have no effec-
+tive amplitude feature, we take 0.5 s as a cycle, and the differ -
+ence between the maximum and minimum voltage values in 
+each cycle is calculated as the amplitude of the cycle. In this 
+way, the amplitude feature of No Operation and Monitoring 
+Driving is obtained. Because of individual differences, the 
+voltage of electrical signals is susceptible to many factors such 
+as humidity, as shown in Figure S4 (Supporting Information). 
+Thus, to attenuate the effects of individual differences and 
+develop a universally applicable real-time non-driving recog-
+nition system, we collected data from eight participants (as 
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 7 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (7 of 12) © 2022 Wiley-VCH GmbH
+shown in Figure 2g), and performed statistical analysis on the 
+amplitude of data shown in Figure 2h,i.
+The boxplot of the amplitude of five types of non-driving 
+behaviors is shown in Figure 2i. Figure 2i reveals that the 
+amplitude of Phone (Median = 2.487), Console Touchpad 
+(Median = 3.408), and Drinking (Median = 5.676) are signifi-
+cantly larger than No Operation (Median = 0.247) and Moni-
+toring Driving (Median = 0.268), the amplitude of Drinking is 
+generally larger than that of Console Touchpad, and the ampli-
+tude of Console Touchpad is generally larger than that of Phone. 
+To investigate the effect of the means of amplitude on five types 
+of non-driving behaviors, an ANOVA (Analysis of Variance) was 
+performed. Phone, Console TouchPad, and Drinking are signifi-
+cantly different from any other non-driving behaviors (p < 0.001). 
+But, there is no significant difference in the mean amplitude 
+between No Operation and Monitoring Driving (p = 0.939).
+Although the amplitude of five types of non-driving behaviors 
+shows a certain pattern, these non-driving behaviors could not 
+be accurately distinguished by the amplitude. As for Drinking 
+and Phone, the amplitude of them can distinguish most of 
+them from each other. However, taking Console Touchpad and 
+Phone as an example, only by the feature of amplitude could 
+not effectively differentiate one from another, because a consid-
+erable part of the amplitudes of two types of behaviors overlaps. 
+There is no significant difference in the amplitude of electrical 
+signals between No Operation and Monitoring Driving, there-
+fore, it is impossible to distinguish No Operation from Moni-
+toring Driving by the amplitude.
+2.3. Data Processing via Machine Learning Technology
+The above work demonstrates that manual extraction of 
+shallow features from triboelectric sensors waveforms, such 
+as amplitude, frequency, and holding time, cannot achieve 
+recognition of non-driving behavior and is very susceptible to 
+environmental variations. Moreover, considering the individual 
+differences and complexity of the non-driving behavior signals 
+detected by the triboelectric sensors, it is necessary to combine 
+machine learning technology to realize real-time intelligent rec-
+ognition of non-driving behavior.
+We propose machine learning-based real-time non-driving 
+behavior recognition models containing four processes: namely, 
+data pre-processing, sliding time window processing, dataset, 
+and model training and testing, as shown in Figure 3a. Data pre-
+processing is conducted to remove noisy and redundant data by 
+using low pass filtering and downsampling, which is beneficial 
+to further feature engineering and algorithm training. Sliding 
+time window processing processes data gathered from tribo-
+electric sensors and image data collected by HD cameras, and 
+reshapes the triboelectric sensors’ data into a dataset (X, Y) con-
+taining samples X of a specified length (width of time window), 
+to facilitate the model building, and meet the needs of real-time 
+detection. Dataset (X, Y) is used for the training and testing of 
+supervised machine learning models. The supervised machine 
+learning algorithm models take triboelectric sensors data X as 
+model input and image data as label Y.
+However, using the data X in the dataset as raw features may 
+have the following shortcomings:
+[56] 1) the redundancy among 
+features is relatively high; 2) not all features are useful for pre-
+diction; 3) many features are usually volatile; 4) there is often 
+some noise in raw features. To improve the performance of 
+machine learning algorithms, feature engineering is conducted 
+to maximize the extraction of adequate and stable features from 
+the raw data. In this paper, we perform feature engineering on 
+raw data by two methods: hand-crafted feature extraction and 
+feature extraction with deep neural network feature extrac-
+tors.
+[56] Hand-crafted features purposefully extract target infor -
+mation manually based on the specificity of the task and the 
+expert experience in designing features. The deep neural net-
+work feature extractor can first learn simple features from big 
+data, and gradually learn more complex and abstract deep fea-
+tures from it, without relying on manual feature engineering.
+The construction of models is as follows:
+1. Data pre-processing: The collected raw voltage data by tri-
+boelectric sensors were low-pass filtered (cut-off frequen-
+cy = 15 Hz), and down-sampled (from 1000 to 60 Hz).
+2. Sliding time window processing: With the help of the slid-
+ing time window, the voltage signal of triboelectric sensors 
+is transformed into a set of samples, and the label of each 
+sample is determined by the image information correspond-
+ing to the last moment of the sliding time window. The step 
+size stride = 1 for each sliding of the sliding time window, and 
+the window width = W is a hyperparameter, and the optimal 
+value of W needs to be determined during model training.
+3. Dataset: After the processes of the first two steps, a dataset 
+(X, Y) was obtained, where X = (x
+1,x2, …, x m), representing 
+a total of m samples, x i = (v1, v2, …, vw), indicating that each 
+sample contains w voltage values, also was the window width 
+of the sliding time window. Y = (y
+1, y2, …, ym) represented the 
+labels corresponding to m samples, and five values in y i = (1, 
+2, 3, 4, 5) represented the non-driving behavior, respectively, 
+where Label = 1 denoted Phone, Label = 2 denoted Console 
+TouchPad, Label = 3 denoted Drinking, Label = 4 denoted No 
+Operation, Label = 5 denoted Monitoring Driving.
+4. Model training and testing: Dataset was divided into a train-
+ing set and a testing set according to the ratio of 8:2 (as shown 
+in Figure 3b). Two multi-class classifiers were obtained ac-
+cording to the hand-crafted features, which were the Random 
+Forest (RF) classifier based on tree models and the Support 
+Vector Machine (SVM) classifier based on distance. Accord-
+ing to the deep neural network feature extractor, a recurrent 
+neural network multi-class classifier that is good at process-
+ing time series data was obtained. To facilitate comparison, 
+we trained and tested three types of classifiers (Recurrent 
+Neural Network (RNN), long short-term memory (LSTM), 
+and gated recurrent neural network (GRU)). The details of 
+RF, SVM, LSTM, GRU, and RNN, are described in Note S6 
+(Supporting Information).
+The hand-crafted features extraction method is com-
+posed of feature extraction and feature selection. Here, we 
+performed time-domain and frequency-domain feature 
+extraction on all samples, including 20 candidate features 
+from the time domain, and 22 candidate features from the 
+frequency domain, and more details are shown in Table S1 
+(Supporting Information). Since the hand-crafted features 
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 8 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (8 of 12) © 2022 Wiley-VCH GmbH
+are heuristic and the starting points behind their algorithm 
+design are different, conflicts may arise when combining 
+these features.
+[56] To bring out the effectiveness of the com-
+bined features, we normalized the candidate features and 
+ranked the candidate features according to their contribution. 
+N features were then selected to form a feature vector for 
+model training. Combined with tenfold Cross-Validation to 
+complete the training of the RF classifier and SVM classi-
+fier, the comparison results of different hyperparameter 
+combinations (window width of sliding time window and a 
+Figure 3. Realization of non-driving behavior recognition via machine learning technology. a) Flow diagram of machine learning for non-driving 
+behavior recognition. b) Details of the distribution of samples in the training set and the testing set. c) The confusion matrix for RF classifier outcome 
+on the testing set. d) The confusion matrix for SVM classifier outcome on the testing set. e) Schematic diagram of the overall structure of the recurrent 
+neural network model. f) Comparison of the test accuracy for three recurrent neural network models. g–i) Visualization of the 2D features of the LSTM 
+model, GRU model, and RNN model. j) The confusion matrix for LSTM classifier outcome on the testing set.
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 9 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (9 of 12) © 2022 Wiley-VCH GmbH
+number of features) during the training process are shown 
+in Figure S8 (Supporting Information). The optimal hyper -
+parameter combinations for the RF classifier and SVM clas-
+sifier are W = 50, N = 35, and W = 70, N = 25, respectively. 
+Figure 3c,d represents the performance of RF and SVM on 
+the testing set, respectively. The total recognition accuracy of 
+the RF classifier is 84.2%, and the total recognition accuracy 
+of the SVM classifier is 86.4%.
+The network structure of the model based on the neural 
+network feature extractor is shown in Figure 3e. The input of 
+input layer is X. The hidden layer is a multi-layer recurrent 
+neural network, including two hyperparameters, the number of 
+hidden layers, and the number of neurons. Feature vectors are 
+output by the feature layer. The feature vectors are the repre-
+sentation of the training sample in the depth feature space after 
+being processed by the first two layers. The dimension of the 
+feature vectors is the same as the number of neurons in each 
+layer of the hidden layer. The feature vectors are processed by a 
+fully connected layer and a softmax layer to obtain the classifi-
+cation result. The values of hyperparameters and performance 
+of models are shown in Figure S9 (Supporting Information). 
+Finally, a four layer dilated recurrent neural network with 100 
+neurons in each layer is adopted, and the window width of 
+the sliding time window is 80. The performance of the classi-
+fier composed of different neurons on the testing set is shown 
+in Figure 3f. It is obvious that the LSTM (93.5%) classifier has 
+higher prediction accuracy compared with the GRU classifier 
+(92.4%) and the RNN classifier (89.8%).
+The 2D feature space was selected to visualize the distribution 
+of samples in the feature space. Figure 3g–i show the distribu-
+tion of testing samples in the feature space of LSTM, GRU, and 
+RNN models, respectively. Different colors represent different 
+categories. Compared with GRU and RNN models, the distribu-
+tion of samples in the feature space of the LSTM model shows 
+stronger inter-class separability and intra-class compactness.
+The confusion matrix of the classification results of the five 
+types of non-driving behaviors on the testing set based on the 
+LSTM (RNN and GRU are shown in Figure S10 (Supporting 
+Information)) classifier is shown in Figure 4j. The accuracy 
+of the Phone and Console TouchPad is over 99%, and the 
+Drinking also achieves a high accuracy of 96.8%, but No Opera-
+tion and Monitoring Driving possess relatively low accuracy 
+rates, 88.1%, and 85.6%, respectively. The recognition accuracy 
+of the LSTM model in Figure 4j and the distribution of testing 
+samples in the feature space of the LSTM model in Figure 4g 
+show similar regularities.
+In summary, the performance of multi-class classifiers 
+based on deep neural network feature extractors is better 
+than that based on hand-crafted features, and among the 
+multi-class classifiers based on deep neural network fea-
+ture extractors, the LSTM model has the best performance 
+(accuracy = 93.5%).
+2.4. Demonstration of Takeover with the Real-Time Non-Driving 
+Behavior Recognition System
+As for vehicles with conditional driving automation (Level 3), 
+the drivers are no longer required to devote their attention to 
+driving-related tasks. However, when the Level 3 automated 
+vehicle issues a TOR due to system failure or reaching its func-
+tional limit, the driver needs to take over the control of the 
+vehicle. When the driver takes over the control of the vehicle, 
+the driver needs to switch from the non-driving state to the 
+driving state. It takes a period of time to adjust and prepare to 
+recover situational awareness and driving ability. This period 
+of time for the preparation of the takeover is named as the 
+takeover time budget. In this paper, the takeover time budget 
+is defined as the time to collision (TTC) from the ego-vehicle 
+to the front vehicle when TOR is issued. RNBRS are used for 
+dynamic adjustment of takeover time budget to improve the 
+quality of driver takeovers.
+In this article, the takeover includes three stages (as shown 
+in Figure 4a). In Stage I, the vehicle is in an autonomous state, 
+and the driver does not need to perform any driving-related 
+tasks. In stage II, a broken-down vehicle appears on the lane 
+of the ego-vehicle to simulate a situation where the ego-vehicle 
+reaches the system limit. When the ego-vehicle reaches a 
+system limit, a TOR is delivered to the driver in form of text on 
+screen and audio (buzzing). After the issuance of TOR, drivers 
+are required to turn left to avoid the broken-down vehicle in the 
+ego-lane and press the auto mode button to return autonomous 
+state after completing the avoidance. In addition, triggers are set 
+in Stage I, and when triggers are activated, an audio instruction 
+is given to requiring the driver to complete the specified non-
+driving behavior. This ensures that the driver is performing a 
+specific non-driving behavior when the TOR is issued. In stage 
+III, the vehicle returns to an autonomous state again.
+A set of controlled experiments were conducted to demon-
+strate the value of RNBRS in the takeover task. In the first 
+experiment, each driver was required to complete five takeover 
+tasks without RNBRS, and each takeover task corresponded to 
+one of the five types of non-driving behaviors (Phone, Con-
+sole TouchPad, Drinking, No Operation, Monitoring Driving), 
+as shown in Figure 4b. The takeover time budgets in the first 
+experiment were set to 5 s.
+[57] In the second experiment, each 
+driver was informed to complete five takeover tasks with 
+RNBRS. The takeover time budgets of the five non-driving 
+behaviors are matched according to the recognition results 
+of the RNBRS. The takeover time budgets for Monitoring 
+Driving, No Operation, Console TouchPad, Drinking, and 
+Phone were set to 5, 6, 7, 8, and 10 s, respectively (Note. The 
+takeover time budgets of the four behaviors are obtained from 
+multiple experiments, and the most reasonable takeover time 
+budget needs further studied as a separate topic), as shown in 
+Figure 4c. See Videos S2–S5 (Supporting Information) for the 
+videos.
+In this paper, there are three indicators for evaluating the 
+quality of takeover, which are the minimum TTC, maximum 
+lateral deceleration (MLD), and maximum longitudinal accel-
+eration (MLA). These three indicators were calculated from 
+data of the driving simulator, of which TTC was used to eval-
+uate the safety of the takeover, and MLD and MLA were used 
+to evaluate the stability of the takeover. The takeover perfor -
+mance of eight drivers with and without RNBRS was investi-
+gated, as shown in Figure 4d. Monitoring driving performs 
+similarly with and without the RNBRS across all three indica-
+tors. Drivers performing Phone, Console TouchPad, Drinking, 
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 10 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (10 of 12) © 2022 Wiley-VCH GmbH
+and No Operation with RNBRS result in greater minimum 
+TTC than drivers without RNBRS, indicating improvements 
+in the safety of the takeover with RNBRS. Drivers performing 
+Phone, Console TouchPad, Drinking and No Operation with 
+RNBRS possess much smaller MLA and MLD than drivers 
+without RNBRS, showing enhancements to the stability of the 
+takeover. According to the results of ANOVA, the takeover per -
+formance of drivers with RNBRS shows a significant difference 
+(p < 0.001) from drivers without RNBRS in all types of non-
+driving behaviors except Monitoring Driving. Combining the 
+histograms with the results of the ANOVA, the takeover perfor -
+mance of drivers with RNBRS is significantly better than that of 
+drivers without RNBRS.
+3. Conclusion
+In this study, we proposed and investigated an RNBRS aided 
+by triboelectric sensors operated in single-electrode mode. The 
+structure, working mechanism, and electrical characteristics of 
+the triboelectric sensors were tested and analyzed in detail. Sig-
+nals of five types of non-driving behaviors were collected by tri-
+boelectric sensors and shallow features (amplitude, frequency, 
+and holding time) were analyzed. To realize an accurate, gen-
+eral applied non-driving behavior recognition, two multi-class 
+classifiers based on manual feature extraction and three multi-
+class classifiers based on neural network feature extractors 
+were trained and tested, of which LSTM with an accuracy of 
+Figure 4. The comparison of takeover performance with and without driver monitoring systems. a) Schematic illustration of the flow of takeover. b) 
+Photograph of takeover without RNBRS. c) Photograph of takeover with RNBRS. d) The comparison of the takeover performance of eight drivers with 
+and without RNBRS in terms of the mean of three evaluation indicators (minimum TTC, maximum longitudinal deceleration, and maximum lateral 
+acceleration). The number of Asterisks (*) indicates the results of the ANOVA, where no star stands for p > 0.05, one * stands for 0.01 < p < 0.05, two 
+** stand for 0.001 < p < 0.01, three *** stands for p < 0.001.
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 11 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (11 of 12) © 2022 Wiley-VCH GmbH
+93.5% outperformed the other four classifiers (RF = 84.2%, 
+SVM = 86.4%, RNN = 89.8%, and GRU = 92.3%). A set of con-
+trolled experiments were conducted to compare the effect of the 
+presence or absence of the RNBRS on the takeover performance 
+in conditionally automated driving. Three indicators were used 
+to evaluate the takeover performance from the perspectives of 
+safety and stability. The results revealed that RNBRS’s dynamic 
+adjustment to the takeover time budget according to the cur -
+rent driver behavior contributed to improving the takeover both 
+in safety and stability. Through the well-built RNBRS addresses 
+the influence caused by individual differences to a certain 
+extent. However, due to the limitation of our triboelectric 
+sensor and deep learning-based models, as well as the impact 
+of age, gender, and driving experience on takeover behaviors, it 
+is difficult for the RNBRS proposed in this paper to fully con-
+sider these factors. In the future, we will try to develop more 
+advanced triboelectric sensors and smarter algorithm models 
+to more comprehensively and accurately identification of non-
+driving behaviors in conditional automated driving.
+Supporting Information
+Supporting Information is available from the Wiley Online Library or 
+from the author.
+Acknowledgements
+H.Z. and H.T. contributed equally to this work and should be considered 
+as co-first authors. This work was supported by National Key R&D 
+Program of China (2019YFB1704001) and National Natural Science 
+Foundation of China via grant no. 51805034 and no. 51878045. Haodong 
+Zhang would also like to acknowledge the fellowship from the China 
+Scholarship Council (CSC).
+Conflict of Interest
+The authors declare no conflict of interest.
+Data Availability Statement
+Research data are not shared.
+Keywords
+conditionally automated driving, deep learning, non-driving behavior 
+recognition, takeover, triboelectric sensors
+Received: September 12, 2022
+Revised: November 2, 2022
+Published online: December 7, 2022
+[1] F. Chen, G. Lu, H. Tan, M. Liu, Accid. Anal. Prev. 2022, 177, 106826.
+[2] SAE, Taxonomy and definitions for terms related to driving automation 
+systems for on-road motor vehicles-. Publication J3016_202104, SAE 
+International, Warrendale, PA 2021.
+[3] J. Dokic, B. Müller, G. Meyer, Eur. Technol. Platf. Smart Syst. Integr. 
+2015, 39.
+[4] P. Kerschbaum, L. Lorenz, K. Bengler, A transforming steering wheel 
+for highly automated cars, 2015, pp. 1287–1292.
+[5] C. Gold, R. Happee, K. Bengler, Accid. Anal. Prev. 2018, 116, 3.
+[6] C. Gold, Proc. Hum. Factors Ergon. Soc. Annu. Meet. 2013, 57, 1938.
+[7] J. Wan, C. Wu, Int. J. Hum.-Comput. Interact. 2018, 34, 987.
+[8] B. Wandtner, N. Schömig, G. Schmidt, Hum. Factors 2018, 60, 870.
+[9] N. Du, F. Zhou, E. M. Pulver, D. M. Tilbury, L. P. Robert, 
+A. K. Pradhan, X. J. Yang, Accid. Anal. Prev. 2020, 148, 1.
+[10] F. Chen, G. Lu, Q. Lin, J. Zhai, Transp. Res. F: Traffic Psychol. Behav. 
+2021, 81.
+[11] S. K. S. , V. N. , N. V. , in 2020 International Conference on Communi-
+cation and Signal Processing (ICCSP), 2020, pp. 1422–1425.
+[12] G. A. , G. H. , B. W. , in 2020 IEEE 16th International Conference on 
+Intelligent Computer Communication and Processing (ICCP), 2020, 
+pp. 407–414.
+[13] W. Li, Y . Cui, Y . Ma, X. Chen, G. Li, IEEE Trans. Affect. Comput. 2021.
+[14] A. M. , A. R. , in 2020 International Conference on Electrical, Commu-
+nication, and Computer Engineering (ICECCE), 2020, pp. 1–5.
+[15] V. T. H. , D. A. , W. J. C. , IEICE Trans. Inf. Syst. 2019, 102, 2637.
+[16] F. Wen, Z. Zhang, T. He, C. Lee, Nat. Commun. 2021, 12, 1.
+[17] H. Zhang, Q. Cheng, X. Lu, W. Wang, Z. Wang, C. Sun, Nano Energy 
+2021, 79, 105455.
+[18] H. J. , L. Y . , P. X. , Biomed. Signal Process. Control 2022, 71, 103094.
+[19] J. Chen, H. Li, L. Han, J. Wu, A. Azam, Z. Zhang, Appl. Soft Comput. 
+2022, 123, 108982.
+[20] Y . Fan, F. Gu, J. Wang, J. Wang, K. Lu, IEEE Internet Things J. 2021.
+[21] J. J. , B. L. , F. A. G. , IEEE Access 2021, 9, 131637.
+[22] D. Wang, Y . Lin, L. Hong, C. Zhang, Y . Bai, Z. Z. Bi, Math. Probl. 
+Eng. 2022, 2022.
+[23] M. Shahverdy, M. Fathy, R. Berangi, Expert Syst. Appl. 2020, 149, 113240.
+[24] Z. Xie, L. Li, X. Xu, Hum. Factors 2021.
+[25] D. Esposito, E. Andreozzi, G. D. Gargiulo, A. Fratini, G. D’Addio, 
+G. R. Naik, P. Bifulco, Front. Neurorobotics 2020, 13.
+[26] G. Zhu, C. Pan, W. Guo, C. Y . Chen, Y . Zhou, R. Yu, Z. L. Wang, Triboe-
+lectric-generator-driven pulse electrodeposition for micropatterning 2012, 12.
+[27] F. R. Fan, Z. Q. Tian, Z. L. Wang, Flexible Triboelectric Generator, 
+Elsevier, 2012, 1.
+[28] Z. L. Wang, A. C. Wang, Mater. Today 2019, 30, 34.
+[29] Z. L. Wang, Mater. Today 2017, 20, 74.
+[30] S. M. S. Rana, M. A. Zahed, M. T. Rahman, M. Salauddin, S. H. Lee, 
+C. Park, P. Maharjan, T. Bhatta, K. Shrestha, J. Y . Park, Adv. Funct. 
+Mater. 2021, 31, 2105110.
+[31] J. Han, Y . Feng, P. Chen, X. Liang, H. Pang, T. Jiang, Z. L. Wang, Adv. 
+Funct. Mater. 2022, 32, 2108580.
+[32] X. Lu, H. Zhang, X. Zhao, H. Yang, L. Zheng, W. Wang, C. Sun, 
+Nano Energy 2021, 89, 106352.
+[33] M. Zhu, Z. Sun, T. Chen, C. Lee, Nat. Commun. 2021, 12.
+[34] Z. Zhao, C. Yan, Z. Liu, X. Fu, L. M. Peng, Y . Hu, Z. Zheng, Adv. 
+Mater. 2016, 28, 10267.
+[35] F. Cai, C. Yi, S. Liu, Y . Wang, L. Liu, X. Liu, X. Xu, L. Wang, Biosens. 
+Bioelectron. 2016, 77, 907.
+[36] H. Guo, X. Pu, J. Chen, Y . Meng, M. H. Yeh, G. Liu, Q. Tang, 
+B. Chen, D. Liu, S. Qi, C. Wu, C. Hu, J. Wang, Z. L. Wang, Sci. 
+Robot. 2018, 3.
+[37] X. Pu, Q. Tang, W. Chen, Z. Huang, G. Liu, Q. Zeng, J. Chen, 
+H. Guo, L. Xin, C. Hu, Nano Energy 2020, 76.
+[38] Q. Shi, Z. Zhang, T. He, Z. Sun, B. Wang, Y . Feng, X. Shan, 
+B. Salam, C. Lee, Nat. Commun. 2020, 11.
+[39] M. Salauddin, S. M. S. Rana, M. T. Rahman, M. Sharifuzzaman, 
+P. Maharjan, T. Bhatta, H. Cho, S. H. Lee, C. Park, K. Shrestha, 
+S. Sharma, J. Y . Park, Adv. Funct. Mater. 2022, 32, 2107143.
+[40] D. G. Dassanayaka, T. M. Alves, N. D. Wanasekara, I. G. Dharmasena, 
+J. Ventura, Adv. Funct. Mater. 2022, 32, 2205438.
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 12 =====
+www.afm-journal.dewww.advancedsciencenews.com
+2210580 (12 of 12) © 2022 Wiley-VCH GmbH
+[41] H. Shen, H. Lei, M. Gu, S. Miao, Z. Gao, X. Sun, L. Sun, 
+G. Chen, H. Huang, L. Chen, Z. Wen, Adv. Funct. Mater. 2022, 32, 
+2204525.
+[42] C. Li, D. Liu, C. Xu, Z. Wang, S. Shu, Z. Sun, W. Tang, Z. L. Wang, 
+Nat. Commun. 2021, 12.
+[43] K. R. S. D. Gunawardhana, N. D. Wanasekara, R. D. I. G. Dharmasena, 
+iScience 2020, 23.
+[44] X. Meng, Q. Cheng, X. Jiang, Z. Fang, X. Chen, S. Li, C. Li, C. Sun, 
+W. Wang, Z. L. Wang, Nano Energy 2018, 51, 721.
+[45] Y . Lu, H. Tian, J. Cheng, F. Zhu, B. Liu, S. Wei, L. Ji, Z. L. Wang, Nat. 
+Commun. 2022, 13, 1.
+[46] W. Xu, S. Liu, J. Yang, Y . Meng, S. Liu, G. Chen, L. Jia, Nano Energy 
+2022, 101, 107557.
+[47] K. Qin, C. Chen, X. Pu, Q. Tang, W. He, Y . Liu, Q. Zeng, G. Liu, 
+H. Guo, C. Hu, Nano-Micro Lett. 2021, 13, 1.
+[48] Y . Han, F. Yi, C. Jiang, K. Dai, Y . Xu, X. Wang, Z. You, Nano Energy 
+2019, 56, 516.
+[49] Y . Zeng, H. Xiang, N. Zheng, X. Cao, N. Wang, Z. L. Wang, Nano 
+Energy 2022, 91, 106601.
+[50] M. B. Durukan, M. O. Cicek, D. Doganay, M. C. Gorur, S. Çınar, 
+H. E. Unalan, Adv. Funct. Mater. 2022, 32, 2106066.
+[51] Y . Jiang, J. An, F. Liang, G. Zuo, J. Yi, C. Ning, H. Zhang, K. Dong, 
+Z. L. Wang, Nano Res. 2022, 1.
+[52] Q. Zhang, T. Jin, J. Cai, L. Xu, T. He, T. Wang, Y . Tian, L. Li, Y . Peng, 
+C. Lee, Adv. Sci. 2022, 9, 1.
+[53] X. Qu, Z. Liu, P. Tan, C. Wang, Y . Liu, H. Feng, D. Luo, Z. Li, 
+Z. L. Wang, 2022, 2521, 1.
+[54] Y . Su, G. Chen, C. Chen, Q. Gong, G. Xie, M. Yao, H. Tai, Y . Jiang, 
+J. Chen, Adv. Mater. 2021, 33.
+[55] J. Stutts, J. Feaganes, D. Reinfurt, E. Rodgman, C. Hamlett, K. Gish, 
+L. Staplin, Elsevier 2005, 37, 1093.
+[56] M. A. Nielsen, Neural Networks and Deep Learning, Determination 
+Press, 2015.
+[57] B. W. Weaver, P. R. DeLucia, Hum. Factors 2022, 64, 1227.
+Adv. Funct. Mater. 2023, 33, 2210580
+ 16163028, 2023, 6, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adfm.202210580 by Huazhong University Of Science, Wiley Online Library on [29/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License

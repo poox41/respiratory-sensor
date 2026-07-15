@@ -1,0 +1,7 @@
+id,label,placement,source_file,notes,use
+chest_175614,胸前固定,胸口,F:/Users/lik/Documents/xwechat_files/wxid_dkahkwnvrf9422_e9bf/msg/file/2026-07/sensor_20260715_175614.csv,胸前且双手压住固定,primary_human
+abdomen_195248,腹部,肚子,F:/Users/lik/Documents/xwechat_files/wxid_dkahkwnvrf9422_e9bf/msg/file/2026-07/sensor_20260713_195248.csv,腹部静息采集,primary_human
+chairback_155119,坐姿椅背,背部压住椅背,F:/Users/lik/Documents/xwechat_files/wxid_dkahkwnvrf9422_e9bf/msg/file/2026-07/sensor_20260715_155119.csv,坐姿椅背采集,primary_human
+desk_195115,桌面无人,桌面,F:/Users/lik/Documents/xwechat_files/wxid_dkahkwnvrf9422_e9bf/msg/file/2026-07/sensor_20260713_195115.csv,无人负对照,negative_control
+desk_203107,桌面无人2,桌面,F:/Users/lik/Documents/xwechat_files/wxid_dkahkwnvrf9422_e9bf/msg/file/2026-07/sensor_20260713_203107.csv,用户明确标注为桌面采集,negative_control
+desk_203202,桌面无人3,桌面,F:/Users/lik/Documents/xwechat_files/wxid_dkahkwnvrf9422_e9bf/msg/file/2026-07/sensor_20260713_203202.csv,用户明确标注为桌面采集,negative_control

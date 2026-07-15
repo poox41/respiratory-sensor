@@ -1,0 +1,765 @@
+===== PDF PAGE 1 =====
+Advanced Materials
+www.advmat.de
+RESEARCHARTICLE
+BioinspiredUltrastretchableAramidTriboelectricAerogels
+forIntelligentVehicleSeat
+MingchaoChi ZixiLin SongZhang Tao Liu YanhuaLiu ChenchenCai BinLuo
+JinlongWang KangYu QiguanLuo ShuangfeiWang ShuangxiNie
+SchoolofLightIndustryandFoodEngineering,GuangxiUniversity,Nanning,P.R.China
+Correspondence:ShuangxiNie( nieshuangxi@gxu.edu.cn)
+Received:12January2026 Revised:26April2026 Accepted:20May2026
+Keywords:aramidfiberaerogel |self-powered|triboelectricaerogels|triboelectricnanogenerators
+ABSTRACT
+Aerogelshavedemonstratedconsiderablepotentialinthefieldofflexiblesensorsowingtothetunabilityofporousarchitectures.
+Thebrittlenessandlowstretchabilityinducedbyhighporosityremainkeylimitationsrestrictingaerogelapplications.Inspiredby
+theorientationofmusclefibers,anultrastretchablearamidtriboelectricaerogelisdevelopedbyprogrammedicecrystalgrowth.
+Theorientationfittingdegreeofthetriboelectricaerogelreaches98%,whichis2.6timeshigherthanthatofconventionalfreeze-
+castingmethods.Thisorderedstructuredispersestensilestressesduringstretching,enablingthetriboelectricaerogeltosustain
+an unprecedented 539% strain. Leveraging this aerogel, the triboelectric sensing array with vibration feedback was designed.
+Combined with deep learning algorithms, it achieved real-time monitoring and vibration feedback alerts of driving behaviors
+withinasinglesensorinterfaceforthefirsttime.Thisstudyoffersapromisingstrategyforintelligentdrivingsystemstoidentify
+andmitigateunsafedrivingbehaviors.
+1 Introduction
+Driven by the global revolution in artificial intelligence and
+sensing technologies, the adoption of intelligent systems has
+emergedasapivotaldirectioninthetechnologicaltransformation
+of the automotive industry [1]. The advancement of intelligent
+driving technologies is gradually shifting the primary driving
+entityfromhumanstoresponsivemachineintelligence,leading
+toapronouncedreductioninoverallaccidentrates[ 2].Asacore
+component of the perception architecture in intelligent driving
+systems,invehiclesensorsenablethereal-timeandpreciseacqui-
+sitionofmultimodalphysicalinformationfrombothinternaland
+external vehicular environments, thereby serving as a prerequi-
+siteandtechnologicalfoundationfordrivingsafetyandadvanced
+autonomous functionalities [3]. Among them, triboelectric sen-
+sors,characterizedbytheirhighintelligence,highsensitivity,and
+ease of integration [4, 5], demonstrate remarkable advantages
+inautomotiveapplications[ 6].Representativeexamplesinclude
+triboelectric-based gloves for monitoring non-driving behaviors
+[7],tirepressuremonitoringdevices[ 8],andvehicleacceleration
+sensors [9]. However, conventional triboelectric materials fail
+to meet the comfort and integration requirements of in-vehicle
+applications[10].
+Aerogels with high porosity possess unique properties such as
+breathability,lowdensity,andthermalinsulation[ 11,12],making
+them promising candidates for triboelectric sensing materials
+[13].However,thedisorderedporousstructureweakensinternal
+interactions,therebyreducingmechanicalstrengthunderstrain
+[14,15].Moreover,disorderedporeshindertheaerogel’sabilityto
+dispersestressthroughcoordinateddeformationacrossitsentire
+structureduringtensileloading.Instead,theyreadilyinduceirre-
+versibleplasticdeformationduetonon-coordinateddeformation
+of local pore walls [16]. Freeze-casting has been employed to
+©2026Wiley-VCHGmbH
+AdvancedMaterials,2026;0:e73549
+https://doi.org/10.1002/adma.73549
+1of12
+
+===== PDF PAGE 2 =====
+FIGURE 1 Musclestructureinspiredstretchableaerogel.(a)Schematicillustrationofthestructuresofskeletalmuscle.(b)Freezecastingbased
+onwettability-confinedsurface.(c)Microstructuresofaerogel:ordered(top)anddisordered(bottom).(d,e)Stretchableaerogelandtriboelec tricsensing
+arraywithvibrationfeedback.(f)Anintelligentvehicleseatcapableofprovidingearlywarningsforfatigueddriving.
+construct aerogels with oriented pore structures. This approach
+has been extended to a wide range of materials, including
+cellulose,ceramics,polymers,carbonnanotubes,graphene,and
+boron nitride [16–18]. Due to the growth of ice crystals along
+the temperature gradient, conventional freeze-casting can only
+produce pore alignment perpendicular to the cold-source plane
+[19]. Ice crystals in the plane parallel to the cold source remain
+largely disordered, preventing effective stress dissipation during
+stretching.Achievingorientedporousstructureswithinthethree-
+dimensional space of aerogels remains a formidable challenge
+andconstitutesamajorbarriertoenhancingtheirstretchability.
+Nature provides a rich source of inspiration for overcoming
+challenges in the science of artificial materials. Skeletal mus-
+cle tissue is composed of highly aligned and densely packed
+bundles of muscle fibres (Figure1a). Each muscle fibre bundle
+consistsofnumerousmyofibrilsthatareorientedparalleltothe
+long axis of the muscle. Upon stretching, the stress generated
+at the sarcomeres is uniformly distributed along the ordered
+myofibrils, effectively preventing localized stress concentration
+withinthemusclefibres[ 20].Thishierarchicalordereffectively
+suppresses localized stress concentrations and is essential for
+efficient extensibility and load transfer in muscle [21]. Inspired
+bytheorderedskeletalmuscletissue,wedevelopedastretchable
+aramid nanofiber triboelectric aerogel with an oriented porous
+structure.Thewettability-confinedsurfaceisemployedtoinduce
+icecrystalstonucleateandgrowpreferentiallywithinhydrophilic
+regions(Figure 1b).Theseicecrystalsenabletheorientationfit-
+tingdegreeoftheaerogelporestructuretoreach98%(Figure 1c).
+The ordered pore structure effectively distributes stress during
+stretching, enabling the aerogel to achieve an ultimate tensile
+strain of 539% and a tensile strength of 706 kPa. Leveraging this
+aerogel,wedesignedatriboelectricsensingarraywithvibration
+feedback tailored for automotive seats (Figure1d,e). Combined
+with deep learning, it enables real-time monitoring of driving
+postureandprovidesvibrationfeedbackalerts(Figure 1f).
+2 ResultsandDiscussion
+2.1 TheMechanismofInterfacialWettability
+Regulation
+Differences in wettability are pivotal in determining the nucle-
+ationsequenceoficecrystals[ 22].Therefore,thecorechallenge
+in constructing aerogels with an oriented porous structure lies
+2of12 AdvancedMaterials,2026
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 3 =====
+FIGURE 2 Design of the wettability-confined surface. (a) Schematic diagram of the preparation of the wettability-confined surface. (b) Surface
+morphologyandelementdistributionoftheoxidizedcopper.(c)X-raydiffractionpatternoftheoxidizedcopper.(d)Contactangleofthetreatedco pper
+andtheetchedFEP.(e)Diffusionprocessofadropletonthewettability-confinedsurface.Scalebarsrepresent2mm.
+in designing a wettability-confined surface with alternating
+hydrophilic and hydrophobic regions. To establish hydrophilic
+regions,polishedcoppersubstrateswereoxidizedusinghydrogen
+peroxide [23, 24]. Subsequently, the fluorinated ethylene propy-
+lenecopolymer(FEP)surfacewaspatternedvialaseretching.The
+patternedFEP(450 µmwide,150 µmspacing, ∼120 µmdepth)was
+adhered to the oxidized copper substrate, forming a wettability-
+confined surface with alternating hydrophilic and hydrophobic
+regions (FigureS1). The wettability-confined surface comprises
+oxidized copper as hydrophilic regions and patterned FEP as
+hydrophobicregions(Figure 2a).Duringtheaforementionedpro-
+cess,adistinctcolorchangewasobservedonthecoppersurface
+before and after oxidation treatment (FigureS2). The surface
+morphology of the treated copper sheet was further analyzed
+usingscanningelectronmicroscopy(SEM).Theresultsrevealed
+that the oxidized copper surface was covered with copper oxide
+particles approximately 200 nm in diameter. Energy dispersive
+X-rayspectroscopy(EDS)mappingconfirmedthedistributionof
+OandCuelementsacrosstheparticlesurface(Figure 2b).X-ray
+diffraction(XRD)patternsfurtherverifiedthepresenceofaCuO
+(111) diffraction peak, confirming the formation of copper oxide
+onthetreatedsurface(Figure 2c).
+Thewatercontactanglesoftheuntreatedcopper,oxidizedcopper,
+and patterned FEP were evaluated. The results showed that the
+contact angle of the copper decreased from 80◦ to 41◦ after oxi-
+dation(Figure S3).Incontrast,thepatternedFEPfilmexhibited
+a contact angle of 128◦ (Figure 2d), attributed to the highly
+hydrophobic fluorine functional groups and the microstruc-
+tures generated by laser etching (FigureS4). The contact angle
+AdvancedMaterials,2026 3of12
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 4 =====
+differencebetweenhydrophilicandhydrophobicregionsreached
+87◦, favoring an increased time difference for ice crystal nucle-
+ationacrossdifferentregions.Tovisualizethealternatingwetta-
+bilityofthewettability-confinedsurface,thespreadingbehavior
+of water droplets on the surface was observed in situ. When a
+droplet was deposited onto the surface, it did not exhibit the
+typicalsphericalcontourformedbysurfacetension,butinstead
+rapidly spread outward along the hydrophilic regions. Within
+merely 1.28 s, the droplet completes its spreading across the
+hydrophilicregion(Movies S1),indicatingthepresenceofdistinct
+wettabilitycontrastzones.Theseexperimentalresultscollectively
+confirm the successful fabrication of the wettability-confined
+surface.
+2.2 FormationMechanismofOrientedPorous
+Structures
+Toinvestigatetheicecrystalgrowthprocess,thefreezingprocess
+of the slurry was observed in situ under a microscope. The
+wettability-confined surface was sealed onto a polytetrafluo-
+roethylene (PTFE) mold as the cooling substrate to assemble
+a three-dimensional directional freeze-casting system (Figure
+S5). Before freeze-casting, the slurry exhibited a translucent
+appearance, allowing clear visualization of the underlying
+wettability-confined surface. During freeze-casting, ice crystal
+growthexpelledpolymerssuchasaramidnanofibersandwater-
+bornepolyurethane(WPU)fromtheslurryintointerstitialspaces
+(Figure S6), markedly reducing the dispersion’s transparency
+and precipitating highly aggregated white polymer aggregates
+(Movies S2)[ 25]. As illustrated in Figure3a, ice crystals prefer-
+entiallynucleatedandgrewwithinthehydrophilicregionsofthe
+wettability-confinedsurfaceuntiltheentirehydrophilicdomain
+was filled. Owing to the time lag in nucleation, ice growth in
+the hydrophobic regions proceeded more slowly, confined by
+the large crystals formed on both adjacent hydrophilic sides.
+This differentiated ice growth behavior can be attributed to
+the variation in the wettability of the cooling surface. The
+heterogeneous nucleation energy barrier for ice crystallization
+(ΔG)canbeexpressedas(Equation 1):
+Δ𝐺 =Δ𝐺homo
+(
+2 −3𝑚 +𝑚3)
+4 (1)
+Among m = (γsl − γsi)/γil ≈ cosθ(− 1 < m < 1), θrepresents the
+contact angle of the ice nucleus on the surface, whileγsl, γsi,
+andγilcorrespond to the interfacial free energies of the surface–
+liquid, surface–ice, and ice–liquid interfaces, respectively [26].
+Under identical slurry compositions and freezing conditions,
+the values ofγsiand γilare nearly identical for both hydrophilic
+and hydrophobic regions. Therefore, the parametermprimarily
+dependsontheinteractionstrengthbetweenwatermoleculesand
+the surface, indicating that surface wettability is the dominant
+factoraffectingthenucleationenergybarrier.Thewatercontact
+angle of the hydrophilic copper substrate is 41◦, significantly
+lower than that of the patterned FEP film (128◦). This demon-
+strates that the hydrophilic copper substrate exhibits stronger
+interfacialinteractions,resultinginalargerinterfacialfreeenergy
+difference,alowernucleationbarrier,andconsequentlyafaster
+nucleationrate.
+To verify the effectiveness of the wettability-confined surface
+in the freeze-casting process, the microstructure of the aerogels
+was systematically analyzed. In conventional freeze-casting, ice
+crystal growth is solely governed by the temperature gradient,
+resulting in aerogels with a unidirectional top-down oriented
+pore structure [27]. Under the combined regulation of the tem-
+peraturegradientandsurfacewettability,icecrystalsexhibitpref-
+erential growth along both vertical and horizontal hydrophilic
+regions. Vertically, the aerogel displays the typical top-down
+lamellar structure characteristic of freeze-casting (Figure3b).
+Multi-angle cross-sectional micrographs of the aerogel confirm
+thatthislamellarstructureexhibitspronouncedorientationalong
+the thickness direction (FigureS7). Horizontally, however, ori-
+ented porous structures were observed, which differ completely
+fromthedisorderedstructuresproducedbyconventionalfreeze-
+casting (Figure3c,d). The oriented pore channels in the aerogel
+are further verified by ultra-depth-of-field three-dimensional
+imaging (Figure S8). The microstructure of oriented porous
+aerogel reveals that the arrangement length of the ordered pore
+structure is significantly greater than that observed in aerogels
+producedbyconventionalfreezecasting(Figure S9).
+Thefurtheranalysisofthehorizontallyorientedporemorphology
+revealed that slurry was expelled into the interstitial spaces by
+directionally growing ice crystals, resulting in a highly ordered
+pore interface after drying (FigureS10). This oriented porous
+structure provides the structural foundation for the aerogel’s
+mechanical stretchability. The pore orientation of the aerogels
+was quantitatively analyzed and compared using ImageJ soft-
+ware. The aerogel fabricated via conventional freeze-casting
+exhibited a disordered pore structure in the horizontal plane,
+with an orientation fitting degree of only 37% (Figure3e). In
+contrast, the aerogel prepared by wettability-confined surface
+exhibits a highly ordered structure. The orientation analysis
+resultsindicatethattheorientationfittingdegreeofthisaerogel
+reaches 98%, which is 2.6 times that of the conventional freeze-
+castingmethod.(Table S1,Figure 3f).Theseresultsconfirmthat
+the wettability-confined surface effectively directed preferential
+ice growth, enabling the successful fabrication of aerogels with
+anorientedporousstructure.
+2.3 StressDispersionMechanismofOrdered
+Structure
+The microstructure of materials is closely related to their
+mechanicalproperties,suchasorientedstructures[ 28],gradient
+structures [29], and chiral structures [30]. The influence of
+orientedstructuresonthetensilepropertiesofaerogelswasana-
+lyzed through stress–strain testing. Under identical slurry com-
+positions, unmodified copper sheets and wettability-confined
+surfaces were respectively used as the cold substrates for freeze
+casting, yielding disordered AP/WPU-40 (Disordered structure)
+aerogelsandorientedporousAP/WPU-40aerogel.Comparedto
+AP/WPU-40(Disorderedstructure),themaximumtensilestrain
+of AP/WPU-40 increased from 250% to 539% (Figure4a). This
+demonstrates that the oriented porous structure significantly
+enhancesthestretchabilityofaerogel.
+Moreover,wefoundthatincreasingtheWPUcontentfrom40vol-
+ume%to50volume%furtherenhancedthetensileperformance,
+4of12 AdvancedMaterials,2026
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 5 =====
+FIGURE 3 Preparation of oriented porous structure aerogels. (a) The growth process of ice crystals on the wettability-confined surface (i:
+hydrophilic region begins to freeze; ii: hydrophilic region is completely frozen; iii: the hydrophilic region and hydrophobic region freeze. Scalebars
+represent 1 mm. (b) The oriented layered structure of the aerogel in the vertical direction. (c) Optical image of the aerogel. (d) Microstructure of the
+aerogelinthehorizontalplane.(e,f)Evaluationoftheoptimalorientationforaerogels.
+but resulted in a pronounced decrease in the aerogel porosity
+(Figure 4b). After comprehensive consideration, AP/WPU-40,
+with a balance of high stretchability and porosity, was selected
+as the subject for subsequent research (Figure4c,M o v i e sS3).
+Subsequently,100cyclictensiletestswereperformedat50%strain
+(Figure4d).Testresultsindicatedthatalthoughtheaerogelexhib-
+ited slight hysteresis in recovery after repeated stretching, the
+tensilestressaftercyclingremainedat78%ofthemaximumstress
+(FigureS11).Tofurtherhighlightthestretchabilityoftheaerogel,
+itwascomparedwithstretchableaerogelsofsimilarcomposition.
+The results indicate that in terms of maximum tensile strain,
+theorientedporousaerogelsignificantlyoutperformspreviously
+reported aerogels (Figure4e)[ 31–36]. In addition, a systematic
+comparison with recently reported aerogel-based triboelectric
+materials reveals that the aramid triboelectric aerogel exhibits a
+distinctadvantageintermsofelongation(Table S2)[37–39].
+Understanding the mechanism by which the oriented porous
+structureinfluencestheaerogel’stensileperformanceiscrucial.
+The deformation and stress response of ordered structure and
+disordered structure aerogels during stretching were compared
+via microscopy. During tensile loading, the disordered struc-
+ture of the aerogel exhibited non-uniform deformation of its
+pore structure, with fractures occurring at pore intersections
+(Figure S12). Owing to irreversible fracture deformation, the
+microstructure of the disordered structure aerogel could not
+AdvancedMaterials,2026 5of12
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 6 =====
+FIGURE 4 Stretchability of aerogels with oriented porous structure. (a) Comparison of the stretchability of different aerogels. (b) Porosity and
+toughnessofaerogels.(c)Opticalpictureofaerogelstretchingat500%.(d)Stress–straincurvesfor100stretchingcycles.(e)Comparisonwithte nsile
+propertiesofreportedaerogels.(f)Microstructureofuniformdeformationinaerogel.(g)Deformationmechanismsoforientedstructuredaerogel s.
+recover to its original state upon release of the tensile load. In
+contrast, the ordered aerogel exhibited uniform deformation of
+theporestructureduringstretching(Figure 4f),withnoapparent
+stressconcentrationpoints.Similarly,finiteelementsimulations
+conductedinCOMSOLconfirmedthattheorderedporestructure
+canuniformlydeformtotransmittensilestressunderlargedefor-
+mations. During the stretching process, the aramid nanofibers
+actasarigidskeletonwhiletheelasticpolyurethaneservesasa
+flexiblefiller,bothsimultaneouslyensuringtheaerogelpossesses
+hightensilestrengthandstretchability(Figure 4g).
+2.4 WorkingMechanismofTriboelectric
+SensingArrayWithVibrationFeedback
+Stretchablesensingdevicescanconformeffectivelytothedefor-
+mations of a flexible automotive seat, enabling precise capture
+ofelectricalsignalsgeneratedbychangesinthedriver’sposture
+[40]. A stretchable aerogel adhered to serpentine electrodes
+was used as the positive triboelectric material, while a top
+layer of polydimethylsiloxane (PDMS) film served as the neg-
+ative triboelectric material, forming an integrated triboelectric
+sensing array with vibration feedback. The triboelectric sensor
+encapsulated with hydrophobic PDMS can maintain relatively
+stableelectricalsignalsunderhumidconditionswithoutshowing
+attenuationduringlong-termcyclictesting(Figure S13).Basedon
+the waveform of the generated electrical signals and the spatial
+distributionofresponsesites,thesystemcaneffectivelymonitor
+headmovementsandposture.(Figure 5a).Theinterfaceconsists
+of eight freestanding layer triboelectric nanogenerator(TENG),
+which are grouped into four sensing units (U1: T4–T5; U2: T3,
+T6; U3: T1–T2; U4: T7–T8) (Figure5b). Moreover, each sensing
+unit is connected to a relay and a vibration actuator, whereby
+the voltage signal generated by the unit controls the relay
+6of12 AdvancedMaterials,2026
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 7 =====
+FIGURE 5 Assemblyofthestretchabletriboelectricsensingarray.(a),Schematicdiagramofthestretchabletriboelectricsensingarray.(b),The
+circuitdesignofthetriboelectricsensingarray.(c),Open-circuitvoltageofthestretchabletriboelectricaerogel.(d),Pressuresensingsens itivityofTENG.
+(e,f),SchematicdiagramoftheUnit1feedbackresponsemechanism.(g),ThetriboelectricsignalsandvibrationforcesofUnit2.
+switching, producing mechanical feedback in distinct vibration
+patterns.
+Tofurtherinvestigatethetriboelectricperformanceofthestretch-
+able aerogel, the aerogel (2.5× 3c m )w a su s e da st h et r i b o -
+electric material and tested under a contact-separation mode.
+The results showed that the aerogel-based TENG generated an
+open-circuit voltage of 206 V (Figure5c), with a short-circuit
+current and surface charge density of 4µAa n d1 0 1µC/m2,
+respectively (FigureS14). After 2000 contact-separation cycles,
+the open-circuit voltage remained largely stable (FigureS15).
+Under the same tensile strain, the open-circuit voltage exhibits
+apronouncedimprovementrelativetothedisordered-structured
+aerogel (FigureS16). Furthermore, even under 200% strain, the
+open-circuitvoltageoftheaerogelretainedover90%ofitsinitial
+value(FigureS17).Benefitingfromitshighelongation,thevoltage
+oftheaerogel-basedtriboelectricmaterialremainedabove80%of
+itsinitialvalueafter200cyclesofloading–unloadingunder100%
+strain,whichlaysthefoundationforstablesensinginsubsequent
+applications(Figure S18).
+AdvancedMaterials,2026 7of12
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 8 =====
+Theoutstandingtriboelectricperformanceenabledittosimulta-
+neouslylightup480LEDsandchargeacapacitorto30Vwithin
+30 s (FigureS19). The peak power density of the aerogel-based
+TENG was calculated to be 1.85 W/m2 by varying the external
+load resistance (FigureS20). Rapid pressure responsiveness is
+essentialforpracticalapplications;thesensorexhibitedveryshort
+response and relaxation times of 50 and 90 ms, respectively
+(FigureS21).Sensitivityisparticularlycriticalforevaluatingthe
+sensingperformanceoftriboelectricmaterials.Whentheapplied
+pressure was below 32 kPa, the aerogel exhibited a triboelectric
+sensitivity of 0.15 kPa−1, which decreased to 0.034 kPa−1 within
+the 32–90 kPa range (Figure 5d). Additionally, the sensing
+sensitivity of the aerogel was tested under stretched conditions,
+and it was found that the sensing sensitivity remained largely
+stable under 100% tensile strain (FigureS22). Moreover, within
+thefrequencyrangeof2–5Hz,variationsincontactfrequencyhad
+anegligibleinfluenceonthesignalintensity(Figure S23).
+When the driver is fatigued, the head subconsciously tilts
+sideways.Weinferredwhetherthedriverisfatiguedbasedondif-
+ferentsitesofthesensinginterfacethatweretriggeredbythehead
+tilt.Moreover,thedifferentresponsesitesofthesensinginterface
+correspondtodistinctmechanicalvibrations,providingthedriver
+with varied warning modes. To evaluate the vibration feedback
+performanceofthetriboelectricsensingarray,thevibrationforce
+was monitored in real time. By adjusting the sensitivity of the
+U1 unit relay, it was configured to remain off under low voltage
+and to activate for 5 s under high voltage before automatically
+turningoff(Figure 5e).TheU1unitcontainstwocentralsensing
+sites(T4–T5);whenthedrivermaintainsanuprightposture,the
+head continuously presses these sites, generating a low-voltage
+signal that keeps the relay off. When the head deviates, a high-
+voltagesignalisgenerated,triggeringtherelayandactivatingthe
+vibrator(Figure 5f).Theforcesensordetectedavibrationforceof
+approximately2mNwitha5sresponsetime.TheU2unitincludes
+two central contact sites (T3 and T6) (FigureS24). Its feedback
+m o d ew a sd e s i g n e dt ov i b r a t ef o r1su p o nc o n t a c tt or e m i n d
+the driver to maintain an upright posture and reduce sideways
+headmovements.Thevibrationforceisalsoapproximately2mN
+andstopsafter1s(Figure 5g).TheU3andU4unitscontainthe
+leftmostandrightmostcontactsites(T1–T2andT7–T8),andtheir
+responsemodesareidentical.Whenthesetwounitsaretriggered,
+it indicates that the driver has completely deviated from the
+uprightposture,andthevibrationactuatoroperatescumulatively
+for 10 s (FigureS25). Collectively, these experimental results
+confirm the effectiveness of the sensing interface for real-time
+vibrationfeedbackandwarning.
+2.5 TriboelectricSensingArrayforDriving
+PostureMonitoringandAlerting
+With the rapid development of intelligent vehicles, in-vehicle
+sensorsplayacriticalroleinmonitoringfatiguedriving,environ-
+mentalperception,andbecomeacoredrivingforceinautomotive
+intelligenttransformation[ 41].Toenablereal-timemonitoringof
+driverposture,atriboelectricsensingarrayconnectedtoamulti-
+channel Bluetooth device was integrated into three locations of
+the car seat: the headrest, left side, and right side. This formed
+awirelessmonitoringsystemforidentifyingthedrivingposture
+(Figure6a).Whenthedriverisfatigued,theheadsubconsciously
+tiltssideways.Firstly,wesimulatedtheresponseoftheheadrest-
+based sensing interface to the driver’s head-turning motions
+(Figure 6b; Figure S26a). When the head was in the normal
+position, the sensors did not produce any noticeable step-like
+signals associated with head-turning motions. When the driver
+simulatedaleftwardheadturnandreturn,thesensorproduced
+a clear downward step-like voltage signal, with the duration of
+the head tilt corresponding to the peak-hold time. Similarly, a
+rightward head turn generated a comparable voltage signal, but
+withthepeakdirectionreversed(Figure S26b).
+The electrical signals generated by the sensing interface can be
+transmitted via Bluetooth to the in-vehicle intelligent terminal,
+where they are analyzed to determine the driver’s posture
+(Figure 6c). When the driver maintains an upright posture, the
+headrest sensing interface records signals from two units, while
+allsensingunitsontheleftandrightsidesrecordvoltagesignals
+corresponding to pressure from the back. When the driver is
+fatigued, actions such as head lowering and leaning forward
+occur, making it difficult for the headrest interface to detect
+signals, and partial units of the left and right interfaces record
+electrical responses. The real-time monitored signals produced
+aheatmapcorrespondingtodriverposture,wheredarkercolors
+indicate stronger electrical signals (Figure6d). The heatmap
+clearlyrevealsthecontactpointsbetweenthedriverandtheseat,
+allowingforanaccurateassessmentofdriverposture.
+To further enhance signal recognition accuracy, the headrest
+sensor data were trained using a convolutional neural network
+(CNN)-baseddeeplearningapproach(Figure 6e).Ofthedataset,
+70% was used for training and 30% for testing the model’s
+accuracy.Electricalsignalscorrespondingtoscenariosincluding
+nodriver,suddenbraking,leftwardglance,normalposture,and
+rightward glance were simulated for analysis. With increasing
+training iterations, the recognition accuracy of the electrical
+signals significantly improved (Figure S27). Figure 6f shows
+the confusion matrix of classification results, where each row
+represents test samples in the actual class, and each column
+represents predicted classes. The results indicate that the CNN-
+based model achieved an average recognition accuracy of 98%
+for headrest movements. To better simulate the influence of
+vibrationnoiseonthesensingsignalduringvehicleoperation,we
+collectedadatasetofsensingsignalswithsuperimposedvibration
+noise. The results show that the model maintains a recognition
+accuracy of over 90% for sensing signals under vibration noise
+(Figure S28). In summary, with the continuous advancement
+of intelligent driving systems, the triboelectric sensing array
+holdsbroadpotentialforapplicationsinassisteddriving,remote
+warnings,andothersafety-relatedfields.
+3 Conclusion
+In summary, inspired by the ordered skeletal muscle tissue,
+this study developed an ultra-stretchable aerogel with an ori-
+ented porous structure by programming the ice crystal growth
+sequence.Theporestructureoftheaerogelachievedanoptimal
+orientation fitting degree of 98%. The ordered pore structure
+effectivelydispersedstressduringstretching,resultinginamax-
+imumtensilestrainof539%andatensilestrengthof706kPa.A
+triboelectricsensingarraywithvibrationfeedbackwasdeveloped
+8of12 AdvancedMaterials,2026
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 9 =====
+FIGURE 6 Application of triboelectric sensing array. (a) Triboelectric sensing array for real-time monitoring of sitting posture. (b) Working
+mechanismofthetriboelectricsensingarrayandopticalimage.(c,d)Schematicdiagramsofnormalandfatiguedseatedposturesalongsidetheirrea l-time
+monitoringdata.(e)SchematicdiagramoftheCNNmodelframeworkstructure.(f)Confusionmatrixforheadmotionclassificationresults.
+basedonthestretchableaerogel.Thesensinginterfacewirelessly
+transmits signals to the in-vehicle terminal for driving posture
+monitoringandalerting.Byintegratingdeeplearningtechnology,
+the sensing interface achieves an average recognition accuracy
+rateof98%forthedriver’sseatingposture.Thehighlystretchable,
+oriented porous aerogel overcomes the intrinsic weak connec-
+tivityofaerogels,pavingthewayfortheirfurtherapplicationin
+flexibleintelligentsensors.
+4 ExperimentalSection
+4.1 Material
+Kevlar fibers with an average length of 6 mm and a diam-
+eter of 12 µm were purchased from DuPont Co., Ltd., USA.
+Waterbornepolyurethane(30%),HNO 3 (65%),dimethylsulfoxide
+(DMSO), KOH (99%), and H2O2 (30%), polyvinyl alcohol (Mw
+AdvancedMaterials,2026 9of12
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 10 =====
+146,000–186,000 a.u., >99% hydrolyzed) were purchased from
+Sigma-Aldrich.
+4.2 PreparationofAramidNanofibers(ANF)
+Kevlar fibers (10 g) and KOH (15 g) were added to 500 mL
+of dimethyl sulfoxide (DMSO) and stirred at 60◦Cf o r7d a y s ,
+yieldingadeepred,transparentANFdispersion.Thedispersion
+was then added to water to induce protonation and reduction,
+followedbyhomogenizationtoobtainastablydispersedaramid
+nanofibersuspension.
+4.3 PreparationofHydrophilicCopperSheets
+Polishedcoppersheetswereimmersedina15wt.%HNO 3 solution
+for 5 min to remove the surface oxide layer. The etched copper
+sheets were then treated in a 30 wt.% H2O2 solution for 60 min
+toinduceoxidation.Theoxidizedcoppersheetswererinsedwith
+deionizedwater,driedinanovenat60 ◦C,andfinallyannealed
+inamufflefurnaceat300 ◦C.
+4.4 PreparationofWettability-ConfinedSurfaces
+Thelaserengravingmachineinline-scanmode(10W)wasused
+to pattern FEP films with adhesive backing (thickness 120µm),
+creating spaced FEP stripes by ablating the designated regions.
+ThepatternedFEPstripeswerethenadheredtothehydrophilic
+coppersubstratestoproducethewettability-confinedsurfaces.
+4.5 PreparationofOrientedPorousAerogels
+A square PTFE tubular mold was sealed onto the wettability-
+confined surface. Aramid nanofibers (2 wt.%) and polyvinyl
+alcohol (5 wt.%) were mixed at a 1:1 volume ratio to obtain a
+dispersiondenotedasAP.TheAPsolutionwasuniformlymixed
+withwaterbornepolyurethaneatvariousvolumefractions(30%,
+40%, and 50%) to prepare the slurry. The mold containing the
+slurrywasplacedinadirectionalfreezingsetupforfreezecasting.
+After complete freezing, the samples were removed from the
+mold and freeze-dried at−90 ◦C under 0.03 mbar for 48 h,
+yieldingaerogelswithanorientedporousstructure.
+4.6 CharacterizationandMeasurement
+Themicrostructureoftheoxidized copper sheetswas examined
+using a field-emission scanning electron microscope (Gem-
+iniSEM 300, ZEISS, Germany). The microstructures of the
+aerogels and wettability-confined surfaces were observed using
+a super-depth three-dimensional optical microscope system
+(VHX-6000, Keyence, Japan). The crystalline morphology of
+the oxidized copper sheets was analyzed by X-ray diffraction
+(MINFLEX600, Rigaku, Japan). Surface wettability was char-
+acterized using a contact angle goniometer (DSA35, Kruss,
+Germany).Tensilestress–straintestswereconductedonaerogel
+(10 ×4 ×100mm)usinganelectronicuniversalmaterialtesting
+machine(3367,Instron,USA)atatensilerateof10mm/min.
+4.7 TestingofAerogelSensingProperties
+One side of a commercial double-sided conductive tape was
+adhered to an acrylic plate, and an aerogel (2.5× 3 × 0.5 cm)
+wasattachedtotheothersideofthetape,servingasthepositive
+triboelectric layer of the TENG. Similarly, a FEP film (25µm)
+of the same area was fixed onto an acrylic plate using double-
+sidedconductivetape,servingasthenegativetriboelectriclayer
+oftheTENG.Thepositiveandnegativetriboelectriclayerswere
+connected to a programmable electrometer (Keithley 6514) via
+copperwires,andthetriboelectricperformancewastestedusing
+alinearmotorinacontact–separationmode.
+4.8 AssemblyofTriboelectricSensingArray
+Theaerogelwascutintoeightrectangularblocks(10 ×20 ×2mm)
+and assembled with patterned serpentine double-sided conduc-
+tive tape. To ensure the stretchability of the sensing interface,
+the aerogel and conductive tape were mounted on a highly
+elasticpolyurethanefilmsubstrate(thickness:0.1mm).APDMS
+film (40 × 150 × 0.5 mm) was placed above the aerogel as
+the negative triboelectric material. The junction between the
+polyurethane film and the PDMS film was encapsulated with
+transparent VHB tape. The 8 TENG units were divided into
+four groups(U1-U4), with the serpentine electrodes connected
+to a multi-channel wireless sensing module. The triboelectric
+signalsfromthetriboelectricsensingarraywererecordedinreal
+time via Bluetooth using a computer-based reception software.
+Additionally, in the vibration feedback module, the four sensor
+groups were connected to linear vibration motors (rated 5 V,
+60 mA) via TENG relay modules operating in different modes,
+with the motors powered by CR2032 button cells. Distinct
+vibration feedback was generated depending on the contact
+positions.
+4.9 OrientationAnalysis
+The pore orientation of the aerogel was quantitatively analyzed
+and compared using the Directionality plugin of ImageJ soft-
+ware. This plugin calculates the structural contribution at each
+anglebasedonFourierspectrumanalysis,generatesanorienta-
+tiondistributionhistogram,andobtainsquantitativeorientation
+parameters through Gaussian fitting. The angle range was set
+from −90◦ to90◦ (100%indicatesperfectalignment,0%indicates
+noalignment).
+Acknowledgements
+This work was supported by Guangxi Natural Science Foundation of
+China(2023GXNSFFA026009,GKAD25069076).
+Funding
+This work was supported by Guangxi Natural Science Foundation of
+China(2023GXNSFFA026009,GKAD25069076).
+ConflictsofInterest
+Theauthorsdeclarenoconflictsofinterest.
+10of12 AdvancedMaterials,2026
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 11 =====
+DataAvailabilityStatement
+The data that supports the findings of this study are available in the
+supplementarymaterialofthisarticle.
+References
+1.S.S.Kamran,A.Haleem,S.Bahl,M.Javaid,C.Prakash,andD.Budhhi,
+“ArtificialIntelligenceandAdvancedMaterialsinAutomotiveIndustry:
+PotentialApplicationsandPerspectives,” MaterialsToday:Proceedings 62
+(2022):4207–4214.
+2.S. A. Birrell, M. Fowkes, and P. Jennings, “Effect of Using an In-
+Vehicle Smart Driving Aid on Real-World Driver Performance,”IEEE
+Transactions on Intelligent Transportation Systems15 (2014): 1801–1810,
+https://doi.org/10.1109/TITS.2014.2328357.
+3.Y. Pang, X. Zhu, S. Liu, and C. Lee, “A Natural Gradient Biological-
+Enabled Multimodal Triboelectric Nanogenerator for Driving Safety
+Monitoring,” ACS Nano17 (2023): 21878–21892,https://doi.org/10.1021/
+acsnano.3c08102.
+4.Y. Wang, Q. Yang, Y. Li, et al., “Light-Emitting Visual Triboelectric
+Nanogenerator for Self-Powered Personal Security,”ACS Energy Letters
+9(2024):2231–2239, https://doi.org/10.1021/acsenergylett.4c00663.
+5.H. Li, Y. Wang, X. Luo, et al., “Self-Powered Etiquette Training Sys-
+temsBased on High-PerformanceZnO Nanowire-Doped Polyvinylidene
+FluoridePiezoelectricNanogenerator,” ACSNano19(2025):39992–40001,
+https://doi.org/10.1021/acsnano.5c14116.
+6.X. Xiong, J. Liang, and W. Wu, “Principle and Recent Progress of
+Triboelectric Pressure Sensors for Wearable Applications,”NanoEnergy
+113(2023):108542, https://doi.org/10.1016/j.nanoen.2023.108542.
+7.X. Lu, H. Tan, H. Zhang, et al., “Triboelectric Sensor Gloves for
+Real-Time Behavior Identification and Takeover Time Adjustment in
+Conditionally Automated Vehicles,”Nature Communications16 (2025):
+1080,https://doi.org/10.1038/s41467-025-56169-2.
+8.D.Maurya,S.Khaleghian,R.Sriramdas,etal.,“3DPrintedGraphene-
+Based Self-Powered Strain Sensors for Smart Tires in Autonomous
+Vehicles,” Nature Communications 11 (2020): 5392,https://doi.org/10.
+1038/s41467-020-19088-y.
+9.X.Lu,C.Wang,H.Li,etal.,“Magnetic-AssistedSelf-PoweredVehicle
+Motion Sensor Based on Triboelectric Nanogenerator for Real-Time
+MonitoringofVehicleMotionStates,” NanoResearch 18(2025):94907015,
+https://doi.org/10.26599/NR.2025.94907015.
+10.W. Wu, “Anti-Crosstalk Materials and Structural Decoupling Strate-
+giesforMultimodalFlexibleSensors,” AdvancedFunctionalMaterials 36
+(2026):24222.
+11.M.Wu,Z.Shao,N.Zhao,etal.,“Biomimetic,KnittableAerogelFiber
+forThermalInsulationTextile,” Science382(2023):1379–1383, https://doi.
+org/10.1126/science.adj8013.
+12.M. Chi, S. Zhang, T. Liu, et al., “Tunable Anisotropic Structural
+Aramid Triboelectric Aerogels Enabled by Magnetic Manipulation,”
+Advanced Functional Materials34 (2024): 2310280,https://doi.org/10.
+1002/adfm.202310280.
+13.C.Cai,T.Liu,X.Meng,etal.,“LightweightandMechanicallyRobust
+Cellulosic Triboelectric Materials for Wearable Self-Powered Rehabili-
+tation Training,”ACS nano19 (2025): 396–405,https://doi.org/10.1021/
+acsnano.4c08445.
+14.H. Gesser and P. C. Goswami, “Aerogels and Related Porous
+Materials,”Chemical Reviews89 (1989): 765–788,https://doi.org/10.1021/
+cr00094a003.
+15.L.Su,H.Wang,S.Jia,etal.,“HighlyStretchable,Crack-Insensitiveand
+CompressibleCeramicAerogel,” ACSnano15(2021):18354–18362, https://
+doi.org/10.1021/acsnano.1c07755.
+16.X. Cheng, Y.-T. Liu, Y. Si, J. Yu, and B. Ding, “Direct Synthesis
+of Highly Stretchable Ceramic Nanofibrous Aerogels via 3D Reaction
+Electrospinning,” Nature Communications13 (2022): 2637,https://doi.
+org/10.1038/s41467-022-30435-z.
+17.Z.Xu,M.Wu,W.Gao,andH.Bai,“ASustainableSingle-Component
+“SilkNacre”,”ScienceAdvances8(2022):abo0946, https://doi.org/10.1126/
+sciadv.abo0946.
+18.M. Li, N. Zhao, A. Mao, et al., “Preferential Ice Growth on Grooved
+Surface for Crisscross-Aligned Graphene Aerogel With Large Negative
+Poisson’sRatio,” NatureCommunications 14(2023):7855, https://doi.org/
+10.1038/s41467-023-43441-6.
+19.N. Zhao, M. Li, H. Gong, and H. Bai, “Controlling Ice Formation on
+Gradient Wettability Surface for High-Performance Bioinspired Materi-
+als,” Science Advances6 (2020): abb4712,https://doi.org/10.1126/sciadv.
+abb4712.
+20.W.Kong,C.Wang,C.Jia,etal.,“Muscle-InspiredHighlyAnisotropic,
+Strong, Ion-Conductive Hydrogels,” Advanced Materials 30 (2018):
+1801934,https://doi.org/10.1002/adma.201801934.
+21.L.Zhang,H.Yan,J.Zhou,etal.,“High-PerformanceOrganohydrogel
+ArtificialMuscleWithCompartmentalizedAnisotropicActuationUnder
+Microdomain Confinement,” Advanced Materials 35 (2023): 2202193,
+https://doi.org/10.1002/adma.202202193.
+22.J.Jiang,G.X.Li,Q.Sheng,andG.H.Tang,“MicroscopicMechanism
+of Ice Nucleation: The Effects of Surface Rough Structure and Wettabil-
+ity,”AppliedSurfaceScience 510(2020):145520, https://doi.org/10.1016/j.
+apsusc.2020.145520.
+23.X. B. Ji, Y. Wang, J. L. Xu, and Y. P. Huang, “Effects of Oxidation
+ProcessesandMicrostructuresontheHydrophilicityofCopperSurface,”
+MaterialsLetters 195(2017):71–75, https://doi.org/10.1016/j.matlet.2017.02.
+101.
+24.D.J.HuangandT.S.Leu,“FabricationofHighWettabilityGradient
+onCopperSubstrate,” AppliedSurfaceScience 280(2013):25–32, https://
+doi.org/10.1016/j.apsusc.2013.04.065.
+25.Q.Cheng,C.Huang,andA.P.Tomsia,“FreezeCastingforAssembling
+BioinspiredStructuralMaterials,” AdvancedMaterials 29(2017):1703155,
+https://doi.org/10.1002/adma.201703155.
+26.Z. Zhang and X. Y. Liu, “Control of Ice Nucleation: Freezing and
+Antifreeze Strategies,” Chemical Society Reviews47 (2018): 7116–7139,
+https://doi.org/10.1039/C8CS00626A.
+27.G. Shao, D. A. Hanaor, X. Shen, and A. Gurlo, “Freeze Casting:
+FromLow-DimensionalBuildingBlockstoAlignedPorousStructures—
+A Review of Novel Materials, Methods, and Applications,”Advanced
+Materials32(2020):1907176, https://doi.org/10.1002/adma.201907176.
+28.Z. Sun, Z. Hu, X. Liu, et al., “Oriented Nanochannel Aerogels for
+High-Transconductance Organic Transistors and Ultrasensitive Biosen-
+sors,”AdvancedMaterials 37(2025):09290, https://doi.org/10.1002/adma.
+202509290.
+29.X. Zhang, Z. Dai, J. Chen, et al., “Double-Gradient-Structured
+Composite Aerogels for Ultra-High-Performance Moisture Energy Har-
+vesting,” Energy & Environmental Science16 (2023): 3600–3611,https://
+doi.org/10.1039/D3EE00981E.
+30.C. Duan, F. Tang, J. Chen, B. Wang, D. Guo, and L. J. C. P. Sha,
+“Non-IridescentModulationofChiralStructureofCelluloseNanocrystals
+UnderMolecularConstraints,” CarbohydratePolymers 368(2025):124175,
+https://doi.org/10.1016/j.carbpol.2025.124175.
+31.J. Huang, J. Li, X. Xu, L. Hua, and Z. Lu, “In Situ Loading of
+PolypyrroleOntoAramidNanofiberandCarbonNanotubeAerogelFibers
+as Physiology and Motion Sensors,”ACS Nano 16 (2022): 8161–8171,
+https://doi.org/10.1021/acsnano.2c01540.
+32.H. He, X. Wei, B. Yang, et al., “Ultrastrong and Multifunctional
+Aerogels With Hyperconnective Network of Composite Polymeric
+Nanofibers,”NatureCommunications 13(2022):4242, https://doi.org/10.
+1038/s41467-022-31957-2.
+33.Y. Luan, S. Zhang, T. H. Nguyen, W. Yang, and J. S. Noha,
+“Polyurethane Sponges Decorated With Reduced Graphene Oxide and
+AdvancedMaterials,2026 11of12
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
+
+===== PDF PAGE 12 =====
+Silver Nanowires for Highly Stretchable Gas Sensors,” Sensors and
+Actuators B: Chemical265 (2018): 609–616,https://doi.org/10.1016/j.snb.
+2018.03.114.
+34.X.Zhang,Q.Sun,X.Liang,etal.,“StretchableandNegative-Poisson-
+Ratio Porous Metamaterials,”Nature Communications 15 (2024): 392,
+https://doi.org/10.1038/s41467-024-44707-3.
+35.K.Huang,M.M.Chen,G.He,etal.,“StretchableMicrowaveAbsorb-
+ingandElectromagneticInterferenceShieldingFoamWithHierarchical
+Buckling Induced by Solvent Swelling,”Carbon 157 (2020): 466–477,
+https://doi.org/10.1016/j.carbon.2019.10.059.
+36.X .Z .W a n g ,H .L .S u n ,X .Y .Y u e ,e ta l . ,“ AH i g h l yS t r e t c h a b l eC a r -
+bonNanotubes/ThermoplasticPolyurethaneFiber-ShapedStrainSensor
+With Porous Structure for Human Motion Monitoring,”Composites
+Science and Technology 168 (2018): 126–132, https://doi.org/10.1016/j.
+compscitech.2018.09.006.
+37.M. Mao, Q. Zhao, J. Tao, Q. Mu, X. He, and J. Li, “Humidity-
+AdaptiveTriboelectricContact/NoncontactSensingandEnergyHarvest-
+ingEnabledbyPlant-Ash-andAmmonium-Salt-CoengineeredCellulose
+Aerogel,” ACS Sensors 11 (2026): 3628–3642, https://doi.org/10.1021/
+acssensors.5c03018.
+38.K. L. Montero, R. Calvo Guzman, A. Tewari, et al., “Printed and
+StretchableTriboelectricEnergyHarvesterBasedonP(VDF-TrFE)Porous
+Aerogel,”AdvancedFunctionalMaterials 34 (2024): 2312881,https://doi.
+org/10.1002/adfm.202312881.
+39.Q. Sun, X. Zhang, P. Gu, et al., “Highly Stretchable MXene-based
+Meta-AerogelsWithNear-ZeroandNegativePoisson’sRatios,” Advanced
+Functional Materials 34 (2024): 2308537,https://doi.org/10.1002/adfm.
+202308537.
+40.Y. Shin, H. S. Lee, Y. J. Hong, et al., “Low-Impedance Tissue-
+Device Interface Using Homogeneously Conductive Hydrogels Chemi-
+cally Bonded to Stretchable Bioelectronics,”Science Advances10 (2024):
+adi7724,https://doi.org/10.1126/sciadv.adi7724.
+41.M. Q. Khan and S. Lee, “A Comprehensive Survey of Driving
+MonitoringandAssistanceSystems,” Sensors19(2019):2574, https://doi.
+org/10.3390/s19112574.
+SupportingInformation
+AdditionalsupportinginformationcanbefoundonlineintheSupporting
+Informationsection.
+SupportingFile1:adma73549-sup-0001-SuppMat.docx.
+SupportingFile2:adma73549-sup-0002-MovieS1.mp4.
+SupportingFile3:adma73549-sup-0003-MovieS2.mp4.
+SupportingFile4:adma73549-sup-0004-MovieS3.mp4.
+12of12 AdvancedMaterials,2026
+ 15214095, 0, Downloaded from https://advanced.onlinelibrary.wiley.com/doi/10.1002/adma.73549 by Huazhong University Of Science, Wiley Online Library on [24/06/2026]. See the Terms and Conditions (https://onlinelibrary.wiley.com/terms-and-conditions) on Wiley Online Library for rules of use; OA articles are governed by the applicable Creative Commons License
