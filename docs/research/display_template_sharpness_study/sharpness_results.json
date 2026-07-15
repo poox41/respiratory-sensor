@@ -1,0 +1,220 @@
+{
+  "purpose": "display-only peak/trough sharpness comparison; formal BPM unchanged",
+  "recommendedBlend": 0.75,
+  "blendDefinition": "(1-blend)*robustMedian + blend*representativeRealMedoidCycle",
+  "datasets": {
+    "chairback_192603": {
+      "sourceRetainedCycles": "docs\\research\\display_template_morphology_study\\derived_signals\\chairback_192603_retained_cycles_and_template.csv",
+      "internalReferenceBpm": 74.394485,
+      "medoidCycleNumber": 4,
+      "medoidMeanSimilarity": 0.937926,
+      "variants": {
+        "0.0": {
+          "templateConsistency": 0.958545,
+          "slope95": 0.104242,
+          "relativeSharpness": 1.0,
+          "curvature95": 0.037852,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.25": {
+          "templateConsistency": 0.960891,
+          "slope95": 0.105337,
+          "relativeSharpness": 1.010498,
+          "curvature95": 0.02818,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.5": {
+          "templateConsistency": 0.959735,
+          "slope95": 0.111558,
+          "relativeSharpness": 1.07018,
+          "curvature95": 0.026235,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.75": {
+          "templateConsistency": 0.954451,
+          "slope95": 0.121566,
+          "relativeSharpness": 1.166187,
+          "curvature95": 0.026713,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "1.0": {
+          "templateConsistency": 0.94678,
+          "slope95": 0.138624,
+          "relativeSharpness": 1.329821,
+          "curvature95": 0.04029,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        }
+      }
+    },
+    "chairback_155119": {
+      "sourceRetainedCycles": "docs\\research\\display_template_morphology_study\\derived_signals\\chairback_155119_retained_cycles_and_template.csv",
+      "internalReferenceBpm": 75.77764,
+      "medoidCycleNumber": 3,
+      "medoidMeanSimilarity": 0.933891,
+      "variants": {
+        "0.0": {
+          "templateConsistency": 0.956612,
+          "slope95": 0.105643,
+          "relativeSharpness": 1.0,
+          "curvature95": 0.027614,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.25": {
+          "templateConsistency": 0.953948,
+          "slope95": 0.100492,
+          "relativeSharpness": 0.951245,
+          "curvature95": 0.028915,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.5": {
+          "templateConsistency": 0.951186,
+          "slope95": 0.099505,
+          "relativeSharpness": 0.941899,
+          "curvature95": 0.038312,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.75": {
+          "templateConsistency": 0.945083,
+          "slope95": 0.099437,
+          "relativeSharpness": 0.941253,
+          "curvature95": 0.04112,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "1.0": {
+          "templateConsistency": 0.935132,
+          "slope95": 0.098143,
+          "relativeSharpness": 0.929011,
+          "curvature95": 0.045062,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        }
+      }
+    },
+    "chest_175614": {
+      "sourceRetainedCycles": "docs\\research\\display_template_morphology_study\\derived_signals\\chest_175614_retained_cycles_and_template.csv",
+      "internalReferenceBpm": 76.22351,
+      "medoidCycleNumber": 3,
+      "medoidMeanSimilarity": 0.900913,
+      "variants": {
+        "0.0": {
+          "templateConsistency": 0.931602,
+          "slope95": 0.10717,
+          "relativeSharpness": 1.0,
+          "curvature95": 0.03181,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.25": {
+          "templateConsistency": 0.926459,
+          "slope95": 0.115115,
+          "relativeSharpness": 1.074132,
+          "curvature95": 0.024591,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.5": {
+          "templateConsistency": 0.921613,
+          "slope95": 0.11944,
+          "relativeSharpness": 1.114487,
+          "curvature95": 0.022953,
+          "positivePeaks": 2,
+          "negativeTroughs": 1,
+          "seamDifference": 0.0
+        },
+        "0.75": {
+          "templateConsistency": 0.914021,
+          "slope95": 0.123346,
+          "relativeSharpness": 1.15093,
+          "curvature95": 0.021411,
+          "positivePeaks": 2,
+          "negativeTroughs": 1,
+          "seamDifference": 0.0
+        },
+        "1.0": {
+          "templateConsistency": 0.903043,
+          "slope95": 0.130989,
+          "relativeSharpness": 1.222251,
+          "curvature95": 0.025499,
+          "positivePeaks": 2,
+          "negativeTroughs": 1,
+          "seamDifference": 0.0
+        }
+      }
+    },
+    "abdomen_195248": {
+      "sourceRetainedCycles": "docs\\research\\display_template_morphology_study\\derived_signals\\abdomen_195248_retained_cycles_and_template.csv",
+      "internalReferenceBpm": 70.690445,
+      "medoidCycleNumber": 5,
+      "medoidMeanSimilarity": 0.908172,
+      "variants": {
+        "0.0": {
+          "templateConsistency": 0.954019,
+          "slope95": 0.111309,
+          "relativeSharpness": 1.0,
+          "curvature95": 0.038656,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.25": {
+          "templateConsistency": 0.953827,
+          "slope95": 0.11271,
+          "relativeSharpness": 1.012584,
+          "curvature95": 0.032655,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.5": {
+          "templateConsistency": 0.948034,
+          "slope95": 0.11688,
+          "relativeSharpness": 1.050045,
+          "curvature95": 0.029285,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "0.75": {
+          "templateConsistency": 0.937918,
+          "slope95": 0.121987,
+          "relativeSharpness": 1.095932,
+          "curvature95": 0.031811,
+          "positivePeaks": 2,
+          "negativeTroughs": 2,
+          "seamDifference": 0.0
+        },
+        "1.0": {
+          "templateConsistency": 0.928098,
+          "slope95": 0.129769,
+          "relativeSharpness": 1.165845,
+          "curvature95": 0.040734,
+          "positivePeaks": 3,
+          "negativeTroughs": 3,
+          "seamDifference": 0.0
+        }
+      }
+    }
+  },
+  "disclosure": "Each four-cycle trace repeats one derived template; it is not four untouched consecutive beats."
+}
