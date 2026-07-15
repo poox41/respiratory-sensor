@@ -1,0 +1,76 @@
+{
+  "purpose": "display-only morphology enhancement; never used for BPM",
+  "selected": {
+    "highpassHz": 1.0,
+    "lowpassHz": 10.0,
+    "filterOrder": 3,
+    "maxShiftPoints": 2,
+    "smoothingPoints": 5,
+    "weightedDisplayScore": 0.88017,
+    "minimumTemplateConsistency": 0.931602,
+    "datasetResults": "{\"chairback_192603\": {\"quality\": 0.958545, \"detected\": 102, \"retained\": 10, \"detailRatio\": 0.039115}, \"chairback_155119\": {\"quality\": 0.956612, \"detected\": 222, \"retained\": 10, \"detailRatio\": 0.072262}, \"chest_175614\": {\"quality\": 0.931602, \"detected\": 160, \"retained\": 10, \"detailRatio\": 0.085654}, \"abdomen_195248\": {\"quality\": 0.954019, \"detected\": 106, \"retained\": 10, \"detailRatio\": 0.068415}}"
+  },
+  "datasets": {
+    "chairback_192603": {
+      "source": "F:\\Users\\lik\\Documents\\xwechat_files\\wxid_dkahkwnvrf9422_e9bf\\msg\\file\\2026-07\\sensor_20260715_192603.csv",
+      "sampleRateHz": 50.0,
+      "gapCount": 0,
+      "dataset": "chairback_192603",
+      "label": "latest seated chair-back",
+      "internalReferenceBpm": 74.394485,
+      "detectedCycles": 102,
+      "retainedCycles": 10,
+      "templateConsistency": 0.958545,
+      "positivePeaks": 2,
+      "negativeTroughs": 2,
+      "slope95": 0.104242,
+      "peakToPeak": 1.698174
+    },
+    "chairback_155119": {
+      "source": "F:\\Users\\lik\\Documents\\xwechat_files\\wxid_dkahkwnvrf9422_e9bf\\msg\\file\\2026-07\\sensor_20260715_155119.csv",
+      "sampleRateHz": 50.0,
+      "gapCount": 0,
+      "dataset": "chairback_155119",
+      "label": "seated chair-back",
+      "internalReferenceBpm": 75.77764,
+      "detectedCycles": 222,
+      "retainedCycles": 10,
+      "templateConsistency": 0.956612,
+      "positivePeaks": 2,
+      "negativeTroughs": 2,
+      "slope95": 0.105643,
+      "peakToPeak": 1.514046
+    },
+    "chest_175614": {
+      "source": "F:\\Users\\lik\\Documents\\xwechat_files\\wxid_dkahkwnvrf9422_e9bf\\msg\\file\\2026-07\\sensor_20260715_175614.csv",
+      "sampleRateHz": 50.0,
+      "gapCount": 0,
+      "dataset": "chest_175614",
+      "label": "chest held with both hands",
+      "internalReferenceBpm": 76.22351,
+      "detectedCycles": 160,
+      "retainedCycles": 10,
+      "templateConsistency": 0.931602,
+      "positivePeaks": 2,
+      "negativeTroughs": 2,
+      "slope95": 0.10717,
+      "peakToPeak": 1.5216
+    },
+    "abdomen_195248": {
+      "source": "F:\\Users\\lik\\Documents\\xwechat_files\\wxid_dkahkwnvrf9422_e9bf\\msg\\file\\2026-07\\sensor_20260713_195248.csv",
+      "sampleRateHz": 50.0,
+      "gapCount": 0,
+      "dataset": "abdomen_195248",
+      "label": "abdomen",
+      "internalReferenceBpm": 70.690445,
+      "detectedCycles": 106,
+      "retainedCycles": 10,
+      "templateConsistency": 0.954019,
+      "positivePeaks": 2,
+      "negativeTroughs": 2,
+      "slope95": 0.111309,
+      "peakToPeak": 1.63522
+    }
+  },
+  "disclosure": "Four cycles repeat one robust template derived from retained real cycles; they are not four untouched consecutive raw beats."
+}
