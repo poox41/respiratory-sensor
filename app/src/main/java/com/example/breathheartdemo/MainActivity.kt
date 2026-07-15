@@ -102,6 +102,9 @@ fun AppScreen() {
     val centeredPreview by processor.centeredPreview.collectAsState()
     val cleanPeakTimes by processor.cleanPeakTimes.collectAsState()
     val heartTemplateStatus by processor.heartTemplateStatus.collectAsState()
+    val enhancedHeartWindowMs = remember(cleanPeakTimes) {
+        calculateEnhancedHeartWindowMs(cleanPeakTimes)
+    }
 
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
@@ -616,7 +619,10 @@ fun AppScreen() {
                                     "模板一致性 " + String.format(
                                         "%.2f",
                                         heartTemplateStatus.quality ?: 0f
-                                    )
+                                    ) +
+                                    "；横向显示约 4 个周期（" +
+                                    String.format("%.1f", enhancedHeartWindowMs / 1000f) +
+                                    "s）"
                             } else {
                                 "正在建立模板：需要至少 3 个有效心搏周期，当前 ${heartTemplateStatus.cycles} 个"
                             },
@@ -628,7 +634,7 @@ fun AppScreen() {
                             color = MaterialTheme.colorScheme.primary,
                             yMin = -1.2f,
                             yMax = 1.2f,
-                            windowMs = 10000L,
+                            windowMs = enhancedHeartWindowMs,
                             gain = 1f,
                             showGrid = true,
                             showZeroLine = true,
@@ -637,7 +643,8 @@ fun AppScreen() {
                         )
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            text = "仅用于突出周期形态；它由 cleanHeart 周期对齐、归一化和模板重构得到，" +
+                            text = "仅用于突出周期形态；它由 cleanHeart 周期对齐、归一化、模板重构和" +
+                                "相位拼接连续化得到，" +
                                 "不得作为原始提取波形，也不参与 BPM 计算。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.error
@@ -696,6 +703,27 @@ fun AppScreen() {
             }
         )
     }
+}
+
+/**
+ * Keep roughly four real heartbeat periods visible in the enhanced-display chart.
+ * This changes only the x-axis window; it does not resample the waveform or affect BPM.
+ */
+internal fun calculateEnhancedHeartWindowMs(peakTimes: List<Long>): Long {
+    val recentIntervals = peakTimes
+        .zipWithNext { previous, current -> current - previous }
+        .filter { it in 500L..1_500L }
+        .takeLast(8)
+        .sorted()
+    if (recentIntervals.isEmpty()) return 4_000L
+
+    val middle = recentIntervals.size / 2
+    val medianIntervalMs = if (recentIntervals.size % 2 == 0) {
+        (recentIntervals[middle - 1] + recentIntervals[middle]) / 2L
+    } else {
+        recentIntervals[middle]
+    }
+    return (medianIntervalMs * 4L).coerceIn(2_000L, 6_000L)
 }
 
 @Composable
