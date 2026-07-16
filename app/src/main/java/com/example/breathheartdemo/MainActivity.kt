@@ -102,9 +102,7 @@ fun AppScreen() {
     val centeredPreview by processor.centeredPreview.collectAsState()
     val cleanPeakTimes by processor.cleanPeakTimes.collectAsState()
     val heartTemplateStatus by processor.heartTemplateStatus.collectAsState()
-    val enhancedHeartWindowMs = remember(cleanPeakTimes) {
-        calculateEnhancedHeartWindowMs(cleanPeakTimes)
-    }
+    val enhancedHeartWindowMs = remember { calculateEnhancedHeartWindowMs() }
 
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
@@ -621,7 +619,7 @@ fun AppScreen() {
                                         "%.2f",
                                         heartTemplateStatus.quality ?: 0f
                                     ) +
-                                    "；横向显示约 4 个周期（" +
+                                    "；横向显示约 10 秒的多周期波形（" +
                                     String.format("%.1f", enhancedHeartWindowMs / 1000f) +
                                     "s）"
                             } else {
@@ -707,25 +705,10 @@ fun AppScreen() {
 }
 
 /**
- * Keep roughly four real heartbeat periods visible in the enhanced-display chart.
+ * Keep a paper-style ten-second multi-cycle window in the enhanced-display chart.
  * This changes only the x-axis window; it does not resample the waveform or affect BPM.
  */
-internal fun calculateEnhancedHeartWindowMs(peakTimes: List<Long>): Long {
-    val recentIntervals = peakTimes
-        .zipWithNext { previous, current -> current - previous }
-        .filter { it in 500L..1_500L }
-        .takeLast(8)
-        .sorted()
-    if (recentIntervals.isEmpty()) return 4_000L
-
-    val middle = recentIntervals.size / 2
-    val medianIntervalMs = if (recentIntervals.size % 2 == 0) {
-        (recentIntervals[middle - 1] + recentIntervals[middle]) / 2L
-    } else {
-        recentIntervals[middle]
-    }
-    return (medianIntervalMs * 4L).coerceIn(2_000L, 6_000L)
-}
+internal fun calculateEnhancedHeartWindowMs(): Long = 10_000L
 
 @Composable
 private fun rememberAutoWindowMs(
