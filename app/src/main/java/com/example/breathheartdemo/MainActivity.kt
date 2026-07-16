@@ -101,8 +101,13 @@ fun AppScreen() {
     val rawPreview by processor.rawPreview.collectAsState()
     val centeredPreview by processor.centeredPreview.collectAsState()
     val cleanPeakTimes by processor.cleanPeakTimes.collectAsState()
-    val heartTemplateStatus by processor.heartTemplateStatus.collectAsState()
-    val enhancedHeartWindowMs = remember { calculateEnhancedHeartWindowMs() }
+    val heartMorphologySnapshot by processor.heartMorphologySnapshot.collectAsState()
+    val morphologyPlaybackBoundaryTimes by processor.morphologyPlaybackBoundaryTimes.collectAsState()
+    val morphologyHeartWindowMs = if (heartMorphologySnapshot.ready) {
+        heartMorphologySnapshot.durationMs.coerceIn(4_000L, 12_000L)
+    } else {
+        7_000L
+    }
 
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
@@ -111,6 +116,12 @@ fun AppScreen() {
     var connectionMessage by remember { mutableStateOf<String?>(null) }
     var sleepStateResult by remember { mutableStateOf<SleepStateResult?>(null) }
     var sleepStateAnalyzing by remember { mutableStateOf(false) }
+    var sleepModelHealth by remember { mutableStateOf<SleepModelHealth?>(null) }
+    var sleepInputProgress by remember {
+        mutableStateOf(sleepStateService.inputProgress(processor))
+    }
+    var autoSleepAnalysis by remember { mutableStateOf(true) }
+    var lastSleepAnalysisSampleMs by remember { mutableStateOf<Long?>(null) }
     var lastConnectionState by remember { mutableStateOf<ConnectionState>(ConnectionState.Disconnected) }
 
     var hasBlePermissions by remember { mutableStateOf(hasBlePermissions(context)) }
@@ -129,6 +140,11 @@ fun AppScreen() {
 
     LaunchedEffect(useMock) {
         job?.cancel()
+        processor.reset()
+        sleepStateResult = null
+        sleepStateAnalyzing = false
+        lastSleepAnalysisSampleMs = null
+        sleepInputProgress = sleepStateService.inputProgress(processor)
         if (useMock) {
             job = scope.launch {
                 MockDataSource(fsHz = fsHz).samples().collect { s ->
@@ -182,6 +198,8 @@ fun AppScreen() {
             lastConnectionState !is ConnectionState.Connected
         ) {
             processor.reset()
+            sleepStateResult = null
+            lastSleepAnalysisSampleMs = null
         }
         lastConnectionState = connectionState
     }
@@ -250,7 +268,7 @@ fun AppScreen() {
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "睡眠状态",
+                                    text = "Sleep State",
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Spacer(Modifier.height(6.dp))
@@ -262,6 +280,40 @@ fun AppScreen() {
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                                Spacer(Modifier.height(8.dp))
+                                Text(
+                                    text = sleepModelStatusText(sleepModelHealth),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = if (sleepModelHealth?.ready == false) {
+                                        MaterialTheme.colorScheme.error
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                LinearProgressIndicator(
+                                    progress = { sleepInputProgress.fraction },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    text = sleepInputProgressText(sleepInputProgress),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(Modifier.height(6.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Switch(
+                                        checked = autoSleepAnalysis,
+                                        onCheckedChange = { autoSleepAnalysis = it },
+                                        enabled = sleepModelHealth?.ready != false
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text(
+                                        text = "Auto update every 30 s after 5.5 min warm-up",
+                                        style = MaterialTheme.typography.bodySmall
+                                    )
+                                }
                             }
                             Spacer(Modifier.width(12.dp))
                             Button(
@@ -269,13 +321,18 @@ fun AppScreen() {
                                     sleepStateAnalyzing = true
                                     sleepStateResult = null
                                     scope.launch {
-                                        sleepStateResult = sleepStateService.predict(processor, rates)
+                                        val result = sleepStateService.predict(processor, rates)
+                                        sleepStateResult = result
+                                        processor.updateSleepPrediction(result)
+                                        if (result.code == 0) {
+                                            lastSleepAnalysisSampleMs = result.timestampMs
+                                        }
                                         sleepStateAnalyzing = false
                                     }
                                 },
-                                enabled = !sleepStateAnalyzing
+                                enabled = !sleepStateAnalyzing && sleepModelHealth?.ready != false
                             ) {
-                                Text("判断睡眠状态")
+                                Text("Analyze Sleep State")
                             }
                         }
                     }
@@ -332,9 +389,9 @@ fun AppScreen() {
             item {
                 Card(shape = MaterialTheme.shapes.large) {
                     Column(modifier = Modifier.padding(12.dp)) {
-                        Text(text = "数据值预览 (s16)", style = MaterialTheme.typography.titleMedium)
+                        Text(text = "Sensor Data Preview (s16)", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            text = "原始s16: $rawPreview",
+                            text = "Raw s16: $rawPreview",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -352,28 +409,28 @@ fun AppScreen() {
                                     sensorLogPath = f?.absolutePath
                                    processor.sensorLogger = l
                                     isSensorLogging = true
-                                    Log.i("MainActivity", "日志记录已开始")
-                                }) { Text("记录日志到CSV") }
+                                    Log.i("MainActivity", "CSV logging started")
+                                }) { Text("Start CSV Logging") }
                             } else {
                                Button(onClick = {
                                     val f = btnLogger.stopLogging()
                                     sensorLogPath = f?.absolutePath
                                    processor.sensorLogger = null
                                     isSensorLogging = false
-                                    Log.i("MainActivity", "日志已停止")
-                                }) { Text("停止记录") }
+                                    Log.i("MainActivity", "CSV logging stopped")
+                                }) { Text("Stop Logging") }
                             }
                         }
                         if (!sensorLogPath.isNullOrBlank()) {
                             Spacer(Modifier.height(4.dp))
                             Text(
-                                text = "日志文件: $sensorLogPath",
+                                text = "Log File: $sensorLogPath",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                         Text(
-                            text = "去直流: $centeredPreview",
+                            text = "DC Removed: $centeredPreview",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -609,47 +666,48 @@ fun AppScreen() {
             }
 
             item {
-                ChartCard(title = "周期增强心搏展示信号（75%代表周期保形，非原始波形）") {
-                    Column {
-                        Text(
-                            text = if (heartTemplateStatus.ready) {
-                                "最近 ${heartTemplateStatus.cycles} 个有效心搏周期同步对齐；" +
-                                    "75%代表性真实周期＋25%稳健模板；" +
-                                    "模板一致性 " + String.format(
-                                        "%.2f",
-                                        heartTemplateStatus.quality ?: 0f
-                                    ) +
-                                    "；横向显示约 10 秒的多周期波形（" +
-                                    String.format("%.1f", enhancedHeartWindowMs / 1000f) +
-                                    "s）"
-                            } else {
-                                "正在建立模板：需要至少 3 个有效心搏周期，当前 ${heartTemplateStatus.cycles} 个"
-                            },
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Waveform(
-                            buffer = processor.enhancedHeartBuf,
-                            color = MaterialTheme.colorScheme.primary,
-                            yMin = -1.2f,
-                            yMax = 1.2f,
-                            windowMs = enhancedHeartWindowMs,
-                            gain = 1f,
-                            showGrid = true,
-                            showZeroLine = true,
-                            zeroLineValue = 0f,
-                            peakTimes = cleanPeakTimes
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "仅用于突出周期形态；它由独立的 1–10 Hz 展示细节通道、" +
-                                "真实峰时刻对齐、代表周期筛选、75%保形混合和相位拼接连续化得到，" +
-                                "不得作为原始提取波形，也不参与 BPM 计算。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error
-                        )
-                    }
+                ChartCard(title = "Heartbeat Enhancement") {
+                    Waveform(
+                        buffer = processor.morphologyHeartBuf,
+                        color = MaterialTheme.colorScheme.tertiary,
+                        yMin = -0.8f,
+                        yMax = 1.15f,
+                        windowMs = morphologyHeartWindowMs,
+                        gain = 1f,
+                        showGrid = true,
+                        showZeroLine = true,
+                        zeroLineValue = 0f,
+                        peakTimes = morphologyPlaybackBoundaryTimes
+                    )
                 }
+            }
+        }
+    }
+
+    LaunchedEffect(sleepStateService) {
+        sleepModelHealth = sleepStateService.checkModel()
+    }
+
+    LaunchedEffect(autoSleepAnalysis, sleepModelHealth?.ready) {
+        while (true) {
+            delay(1_000L)
+            val progress = sleepStateService.inputProgress(processor)
+            sleepInputProgress = progress
+            val lastAnalyzed = lastSleepAnalysisSampleMs
+            val newWindowAvailable = progress.timestampMs != null &&
+                (lastAnalyzed == null || progress.timestampMs - lastAnalyzed >= 30_000L)
+            if (autoSleepAnalysis &&
+                sleepModelHealth?.ready == true &&
+                progress.ready &&
+                newWindowAvailable &&
+                !sleepStateAnalyzing
+            ) {
+                sleepStateAnalyzing = true
+                val result = sleepStateService.predict(processor, rates)
+                sleepStateResult = result
+                processor.updateSleepPrediction(result)
+                lastSleepAnalysisSampleMs = result.timestampMs ?: progress.timestampMs
+                sleepStateAnalyzing = false
             }
         }
     }
@@ -991,14 +1049,48 @@ private fun hasBleConnectPermission(context: android.content.Context): Boolean {
 }
 
 private fun sleepStateText(result: SleepStateResult?, analyzing: Boolean): String {
-    if (analyzing) return "正在分析..."
-    if (result == null) return "等待判断"
+    if (analyzing) return "Analyzing..."
+    if (result == null) return "Waiting for analysis"
 
     return when (result.code) {
-        0 -> "模型试验输出：${result.stateName}，置信度 ${"%.0f".format(result.confidence * 100f)}%（待真实睡眠标签验证）"
-        1001 -> "当前采集数据不足，请继续采集后重试（${result.message}）"
-        1002 -> "当前数据暂无法判断：信号质量差（${result.message}）"
-        else -> "状态识别失败：${result.message}"
+        0 -> "Experimental output: ${result.stateName}; sleep probability " +
+            "${"%.0f".format(result.confidence * 100f)}%; " +
+            "${result.inferenceTimeMs ?: 0L} ms" +
+            if ((result.inputOutlierRatio ?: 0f) >= 0.05f) {
+                "; WARNING: ${"%.0f".format((result.inputOutlierRatio ?: 0f) * 100f)}% " +
+                    "of normalized features are far outside the training distribution."
+            } else {
+                " (not a medical diagnosis)"
+            }
+        1001 -> "Insufficient data. Continue recording and try again (${result.message})"
+        1002 -> "Unable to determine the current state: poor signal quality (${result.message})"
+        1004 -> "Model unavailable: ${result.message}"
+        else -> "State recognition failed: ${result.message}"
+    }
+}
+
+private fun sleepModelStatusText(health: SleepModelHealth?): String {
+    if (health == null) return "Checking ONNX model and configuration..."
+    if (!health.ready) return "Model contract check failed: ${health.message}"
+    return "${health.modelVersion} loaded; input ${health.inputShape}. " +
+        "ONNX/config verified, real-sensor feature parity is not yet validated."
+}
+
+private fun sleepInputProgressText(progress: SleepModelInputProgress): String {
+    return if (progress.ready) {
+        if (progress.imputedSamples > 0) {
+            "Input ready with brief-motion tolerance: ${"%.1f".format(
+                progress.imputedSamples * 100f / progress.requiredSamples
+            )}% reconstructed; max gap ${progress.maxGapMs}ms."
+        } else {
+            "Continuous input ready: ${progress.requiredSeconds}s (11 x 30s rolling window)."
+        }
+    } else if (progress.collectedSamples >= progress.requiredSamples && !progress.qualityAcceptable) {
+        "Too much motion in the rolling window (max gap ${progress.maxGapMs}ms). " +
+            "Keep measuring; a cleaner window will replace it automatically."
+    } else {
+        "Continuous input: ${"%.1f".format(progress.collectedSeconds)}/" +
+            "${progress.requiredSeconds}s; ${"%.1f".format(progress.remainingSeconds)}s remaining."
     }
 }
 

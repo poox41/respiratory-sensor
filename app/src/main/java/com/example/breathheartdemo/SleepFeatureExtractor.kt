@@ -8,8 +8,8 @@ import kotlin.math.sqrt
 
 class SleepFeatureExtractor {
     fun extractEpoch(heart50Hz: FloatArray, respiration50Hz: FloatArray): FloatArray {
-        val ecg = resampleLinear(heart50Hz, sourceHz = 50, targetHz = 100)
-        val resp = resampleLinear(respiration50Hz, sourceHz = 50, targetHz = 25)
+        val ecg = resampleTimeAligned(heart50Hz, sourceHz = 50, targetHz = 100)
+        val resp = resampleTimeAligned(respiration50Hz, sourceHz = 50, targetHz = 25)
         val out = FloatArray(FEATURE_DIM) { 0f }
 
         out[0] = mean(ecg)
@@ -184,13 +184,19 @@ class SleepFeatureExtractor {
         return peaks.toIntArray()
     }
 
-    private fun resampleLinear(values: FloatArray, sourceHz: Int, targetHz: Int): FloatArray {
+    /**
+     * Preserve the source sampling clock when converting 50 Hz data.  The old
+     * endpoint-to-endpoint scale introduced a small time-axis stretch in every
+     * 30-second epoch.  This interpolation is deterministic and appropriate for
+     * the already band-limited app signals, but still needs golden-vector
+     * comparison against the training pipeline's SciPy FFT resampler.
+     */
+    private fun resampleTimeAligned(values: FloatArray, sourceHz: Int, targetHz: Int): FloatArray {
         if (values.isEmpty() || sourceHz == targetHz) return values.copyOf()
-        val outSize = max(1, values.size * targetHz / sourceHz)
+        val outSize = max(1, ((values.size.toLong() * targetHz) / sourceHz).toInt())
         val out = FloatArray(outSize)
-        val scale = (values.size - 1).toFloat() / max(1, outSize - 1)
         for (i in out.indices) {
-            val pos = i * scale
+            val pos = i * sourceHz.toFloat() / targetHz.toFloat()
             val left = pos.toInt().coerceIn(0, values.lastIndex)
             val right = min(values.lastIndex, left + 1)
             val frac = pos - left
@@ -303,5 +309,64 @@ class SleepFeatureExtractor {
 
     companion object {
         const val FEATURE_DIM = 57
+        val FEATURE_NAMES = listOf(
+            "ecg_signal_mean",
+            "ecg_signal_std",
+            "ecg_signal_range",
+            "ecg_flat_ratio",
+            "ecg_zero_crossing_rate",
+            "resp_mean",
+            "resp_std",
+            "resp_signal_range",
+            "resp_flat_ratio",
+            "resp_zero_crossing_rate",
+            "hr_mean",
+            "hr_std",
+            "ecg_peak_count",
+            "rr_mean",
+            "rr_std",
+            "rr_median",
+            "rr_iqr",
+            "sdnn",
+            "rmssd",
+            "pnn20",
+            "pnn50",
+            "hr_min",
+            "hr_max",
+            "hr_range",
+            "rr_valid_count",
+            "rr_all_count",
+            "rr_valid_ratio",
+            "rr_invalid_ratio",
+            "resp_rate_mean",
+            "resp_rate_std",
+            "resp_peak_count",
+            "resp_cycle_std",
+            "resp_cycle_iqr",
+            "resp_amp_iqr",
+            "resp_diff_std",
+            "resp_diff_range",
+            "resp_rate_median",
+            "resp_rate_iqr",
+            "resp_rate_min",
+            "resp_rate_max",
+            "resp_rate_range",
+            "resp_rate_cv",
+            "resp_cycle_mean",
+            "resp_cycle_std_enh",
+            "resp_cycle_cv",
+            "resp_cycle_rmssd",
+            "resp_cycle_pnn20",
+            "resp_amp_mean",
+            "resp_amp_std",
+            "resp_amp_cv",
+            "resp_amp_iqr_enh",
+            "resp_amp_range",
+            "resp_low_amp_ratio",
+            "resp_flat_ratio_strict",
+            "resp_pause_count",
+            "resp_pause_ratio",
+            "hr_resp_ratio"
+        )
     }
 }

@@ -1,0 +1,4 @@
+﻿position,source_file,best_window_start_s,best_window_end_s,retained_real_cycles,median_rr_s,template_quality,adaptive_consistency,adaptive_variation,adaptive_roughness,adaptive_fidelity_to_detail,narrowband_consistency,narrowband_variation,narrowband_roughness,narrowband_fidelity_to_detail
+胸口,sensor_20260716_152843.csv,92.420,102.420,15,0.720000,0.878116,0.987983,0.159026,0.105710,0.188265,0.982940,0.242721,0.027595,0.739433
+腹部,sensor_20260716_153115.csv,124.220,134.220,12,0.800000,0.877482,0.985469,0.182220,0.064375,0.032618,0.890693,0.296059,0.017337,0.808636
+椅背,sensor_20260716_153454.csv,72.480,82.480,13,0.860000,0.930758,0.994335,0.088903,0.107474,0.230670,0.958173,0.257700,0.019425,0.615578

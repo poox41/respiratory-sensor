@@ -1,0 +1,4 @@
+﻿Position,Dataset,Start_s,Duration_s,Median_RR_s,RR_CV,Equivalent_BPM_from_RR,Template_Quality,Median_Cycle_Correlation,Median_SecondPeak_Ratio,Cycle_Variation_RMS,Source_Label,Boundary_Label,Use
+胸口,sensor_20260716_152843.csv,113.580,6.000,0.7500,0.15434,80.00,0.85374,0.99388,0.26041,0.04414,heartTemplateInput,cleanPeak,Display only; not BPM/SCG source
+腹部,sensor_20260716_153115.csv,128.720,6.640,0.8200,0.06815,73.17,0.80927,0.99646,0.00000,0.04713,heartTemplateInput,cleanPeak,Display only; not BPM/SCG source
+椅背,sensor_20260716_153454.csv,73.220,6.440,0.8500,0.17991,70.59,0.87502,0.99575,0.27821,0.04886,heartTemplateInput,cleanPeak,Display only; not BPM/SCG source

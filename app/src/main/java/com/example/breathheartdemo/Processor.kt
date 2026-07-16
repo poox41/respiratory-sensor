@@ -15,6 +15,8 @@ class Processor(private val fsHz: Int) {
    val cleanHeartBuf = RingBuffer(cap)
    // Beat-synchronous averaged/template-reconstructed signal for display only.
    val enhancedHeartBuf = RingBuffer(cap)
+   // A/B channel: latest eight completed real cycles with constrained morphology.
+   val morphologyHeartBuf = RingBuffer(cap)
 
     // Pre-filter (0.05~8 Hz): DC remove + 8 Hz LP
     private val preLP = MovingAverage(windowSize = 8)  // 8 samples (~160ms, ~6 Hz LP)
@@ -56,6 +58,8 @@ class Processor(private val fsHz: Int) {
     private val templateDetailLPF1 = BiquadFilter.lowPass(cutoffHz = 10f, sampleRate = fsHz)
     private val templateDetailLPF2 = BiquadFilter.lowPass(cutoffHz = 10f, sampleRate = fsHz)
     private val heartbeatTemplateEnhancer = HeartbeatTemplateEnhancer(fsHz = fsHz)
+    private val heartbeatMorphologyBuilder = HeartbeatMorphologySnapshotBuilder(fsHz = fsHz)
+    private val heartbeatMorphologyPlayer = HeartbeatMorphologyDelayedPlayer(fsHz = fsHz)
     // Observation only: logged for calibration, never gates signals or rates.
     private val presenceObserver = PresenceObserver(fsHz = fsHz)
     private val _presenceObservation = MutableStateFlow(PresenceObserver.Observation())
@@ -190,6 +194,10 @@ class Processor(private val fsHz: Int) {
     private val cleanPeakTimesList = mutableListOf<Long>()
     private val _heartTemplateStatus = MutableStateFlow(HeartTemplateEnhancement())
     val heartTemplateStatus: StateFlow<HeartTemplateEnhancement> = _heartTemplateStatus
+    private val _heartMorphologySnapshot = MutableStateFlow(MorphologyWaveformSnapshot())
+    val heartMorphologySnapshot: StateFlow<MorphologyWaveformSnapshot> = _heartMorphologySnapshot
+    private val _morphologyPlaybackBoundaryTimes = MutableStateFlow<List<Long>>(emptyList())
+    val morphologyPlaybackBoundaryTimes: StateFlow<List<Long>> = _morphologyPlaybackBoundaryTimes
     private val hrEstimator = PeakRateEstimator(
         fsHz = fsHz,
         refractoryMs = 250,
@@ -231,6 +239,12 @@ class Processor(private val fsHz: Int) {
 
     // DC removal: slow exponential-moving-average
    var sensorLogger: SensorDataLogger? = null
+    @Volatile
+    private var latestSleepPrediction: SleepStateResult? = null
+
+    fun updateSleepPrediction(result: SleepStateResult?) {
+        latestSleepPrediction = result
+    }
    // Rolling buffers for live preview (raw vs centered)
     private val recentRaw = IntArray(16)
     private var rawIdx = 0
@@ -419,6 +433,35 @@ class Processor(private val fsHz: Int) {
         if (templateEnhancement.peakProcessed) {
             _heartTemplateStatus.value = templateEnhancement
         }
+        val morphologySnapshot = heartbeatMorphologyBuilder.next(
+            value = heartTemplateInput,
+            timeMs = t,
+            detectedPeakTimeMs = if (cleanHeartDetection.detected) cleanHeartDetection.peakTimeMs else null
+        )
+        if (morphologySnapshot != null) {
+            _heartMorphologySnapshot.value = morphologySnapshot
+            if (morphologySnapshot.ready) {
+                heartbeatMorphologyPlayer.update(morphologySnapshot)
+                _morphologyPlaybackBoundaryTimes.value =
+                    heartbeatMorphologyPlayer.delayedBoundaryTimesMs.filter { it <= t }
+            } else if (morphologySnapshot.cycles == 0) {
+                heartbeatMorphologyPlayer.clear()
+                morphologyHeartBuf.clear()
+                _morphologyPlaybackBoundaryTimes.value = emptyList()
+            }
+        }
+        val morphologyPlaybackValue = heartbeatMorphologyPlayer.next(t)
+        var morphologyBoundaryThisSample = false
+        morphologyPlaybackValue?.let { value ->
+            morphologyHeartBuf.add(t, value)
+            val visibleBoundaries =
+                heartbeatMorphologyPlayer.delayedBoundaryTimesMs.filter { it <= t }
+            if (visibleBoundaries != _morphologyPlaybackBoundaryTimes.value) {
+                _morphologyPlaybackBoundaryTimes.value = visibleBoundaries
+            }
+            morphologyBoundaryThisSample =
+                heartbeatMorphologyPlayer.delayedBoundaryTimesMs.any { it == t }
+        }
         val rpmZc = zeroCrossRpm.next(resp, t)
         val respCycleDetection = respCycleRateDetector.next(resp, t)
         val signalActive = true
@@ -481,6 +524,12 @@ class Processor(private val fsHz: Int) {
             heartTemplateQuality = templateEnhancement.quality,
             heartTemplateCycles = templateEnhancement.cycles,
             heartTemplateReady = templateEnhancement.ready,
+            heartMorphologyEnhanced = morphologyPlaybackValue,
+            heartMorphologyReady = morphologyPlaybackValue != null,
+            heartMorphologyCycles = _heartMorphologySnapshot.value.cycles,
+            heartMorphologyQuality = _heartMorphologySnapshot.value.quality,
+            heartMorphologyDelayMs = heartbeatMorphologyPlayer.delayMs,
+            heartMorphologyBoundary = morphologyBoundaryThisSample,
             normHr = normHr,
             windowedPeak = windowedHeartDetection.detected,
             windowedBpm = windowedHeartDetection.bpm,
@@ -500,7 +549,15 @@ class Processor(private val fsHz: Int) {
             presenceState = presenceObservation.state.name,
             presenceScore = presenceObservation.score,
             heartEnvelope10s = presenceObservation.heartEnvelope10s,
-            heartStd10s = presenceObservation.heartStd10s
+            heartStd10s = presenceObservation.heartStd10s,
+            sleepPredictedState = latestSleepPrediction?.state,
+            sleepProbability = latestSleepPrediction?.takeIf { it.code == 0 }?.confidence,
+            sleepResultCode = latestSleepPrediction?.code,
+            sleepModelVersion = latestSleepPrediction?.modelVersion,
+            sleepPredictionTimeMs = latestSleepPrediction?.timestampMs,
+            sleepInputOutlierRatio = latestSleepPrediction?.inputOutlierRatio,
+            sleepInputImputedFraction = latestSleepPrediction?.inputImputedFraction,
+            sleepInputMaxGapMs = latestSleepPrediction?.inputMaxGapMs
         )
 
 
@@ -592,6 +649,7 @@ class Processor(private val fsHz: Int) {
         hrBuf.clear()
         cleanHeartBuf.clear()
         enhancedHeartBuf.clear()
+        morphologyHeartBuf.clear()
         zeroCrossBpm = null
         prevHrRaw = 0f
         lastHrZeroT = 0L
@@ -603,7 +661,9 @@ class Processor(private val fsHz: Int) {
         centeredIdx = 0; centeredCount = 0
         _rawPreview.value = ""
         _centeredPreview.value = ""
-        sensorLogger = null
+        latestSleepPrediction = null
+        // A signal/source reset must not silently detach an active CSV logger;
+        // the UI owns the logger lifecycle through Start/Stop CSV Logging.
         hrEstimator.clear()
         respEstimator.clear()
         hrRateSmoother.clear()
@@ -631,6 +691,10 @@ class Processor(private val fsHz: Int) {
         templateDetailLPF2.clear()
         heartbeatTemplateEnhancer.clear()
         _heartTemplateStatus.value = HeartTemplateEnhancement()
+        heartbeatMorphologyBuilder.clear()
+        heartbeatMorphologyPlayer.clear()
+        _heartMorphologySnapshot.value = MorphologyWaveformSnapshot()
+        _morphologyPlaybackBoundaryTimes.value = emptyList()
         heartSep.clear()
         hrPeakDetector.clear()
         windowedHeartPeakDetector.clear()

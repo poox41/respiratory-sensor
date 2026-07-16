@@ -31,12 +31,18 @@ class SensorDataLogger(private val context: Context) {
                 "hrRaw,hrF1,hrF,hrFilt,hrCalc,hrDisplay,heartCandidate,heartEnvelope," +
                 "cleanHeart,cleanHeartEnvelope,heartTemplateInput," +
                 "heartTemplateEnhanced,heartTemplateQuality," +
-                "heartTemplateCycles,heartTemplateReady,normHr," +
+                "heartTemplateCycles,heartTemplateReady," +
+                "heartMorphologyEnhanced,heartMorphologyReady," +
+                "heartMorphologyCycles,heartMorphologyQuality," +
+                "heartMorphologyDelayMs,heartMorphologyBoundary,normHr," +
                 "windowedPeak,windowedBpm,periodicBpm,periodicQuality," +
                 "cleanPeriodicBpm,cleanPeriodicQuality,cleanPeak,cleanPeakBpm," +
                 "thresholdPeak,dualPeakBpm,bpm,rpm,rpm_zc," +
                 "respCycle,cycleRpm," +
-                "presenceState,presenceScore,heartEnvelope10s,heartStd10s"
+                "presenceState,presenceScore,heartEnvelope10s,heartStd10s," +
+                "sleepPredictedState,sleepProbability,sleepResultCode," +
+                "sleepModelVersion,sleepPredictionTimeMs,sleepInputOutlierRatio," +
+                "sleepInputImputedFraction,sleepInputMaxGapMs"
         )
         writer?.newLine()
         isLogging = true
@@ -65,6 +71,12 @@ class SensorDataLogger(private val context: Context) {
         heartTemplateQuality: Float?,
         heartTemplateCycles: Int,
         heartTemplateReady: Boolean,
+        heartMorphologyEnhanced: Float?,
+        heartMorphologyReady: Boolean,
+        heartMorphologyCycles: Int,
+        heartMorphologyQuality: Float?,
+        heartMorphologyDelayMs: Long,
+        heartMorphologyBoundary: Boolean,
         normHr: Float,
         windowedPeak: Boolean,
         windowedBpm: Float?,
@@ -84,7 +96,15 @@ class SensorDataLogger(private val context: Context) {
         presenceState: String,
         presenceScore: Float?,
         heartEnvelope10s: Float?,
-        heartStd10s: Float?
+        heartStd10s: Float?,
+        sleepPredictedState: String?,
+        sleepProbability: Float?,
+        sleepResultCode: Int?,
+        sleepModelVersion: String?,
+        sleepPredictionTimeMs: Long?,
+        sleepInputOutlierRatio: Float?,
+        sleepInputImputedFraction: Float?,
+        sleepInputMaxGapMs: Long?
     ) {
         if (!isLogging || writer == null) return
         try {
@@ -111,6 +131,12 @@ class SensorDataLogger(private val context: Context) {
                 write(heartTemplateQuality?.toString() ?: ""); write(",")
                 write(heartTemplateCycles.toString()); write(",")
                 write(if (heartTemplateReady) "1" else "0"); write(",")
+                write(heartMorphologyEnhanced?.toString() ?: ""); write(",")
+                write(if (heartMorphologyReady) "1" else "0"); write(",")
+                write(heartMorphologyCycles.toString()); write(",")
+                write(heartMorphologyQuality?.toString() ?: ""); write(",")
+                write(heartMorphologyDelayMs.toString()); write(",")
+                write(if (heartMorphologyBoundary) "1" else "0"); write(",")
                 write(normHr.toString()); write(",")
                 write(if (windowedPeak) "1" else "0"); write(",")
                 write(windowedBpm?.toString() ?: ""); write(",")
@@ -130,7 +156,15 @@ class SensorDataLogger(private val context: Context) {
                 write(presenceState); write(",")
                 write(presenceScore?.toString() ?: ""); write(",")
                 write(heartEnvelope10s?.toString() ?: ""); write(",")
-                write(heartStd10s?.toString() ?: "")
+                write(heartStd10s?.toString() ?: ""); write(",")
+                write(sleepPredictedState ?: ""); write(",")
+                write(sleepProbability?.toString() ?: ""); write(",")
+                write(sleepResultCode?.toString() ?: ""); write(",")
+                write(sleepModelVersion ?: ""); write(",")
+                write(sleepPredictionTimeMs?.toString() ?: ""); write(",")
+                write(sleepInputOutlierRatio?.toString() ?: ""); write(",")
+                write(sleepInputImputedFraction?.toString() ?: ""); write(",")
+                write(sleepInputMaxGapMs?.toString() ?: "")
                 newLine()
             }
         } catch (_: Exception) {
