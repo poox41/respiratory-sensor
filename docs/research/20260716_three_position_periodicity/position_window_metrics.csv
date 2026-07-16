@@ -1,0 +1,4 @@
+﻿dataset_id,position,source_file,sample_rate_hz,window_start_s,window_end_s,beat_count,median_bpm,cleanheart_autocorrelation,detail_autocorrelation,rr_cv,rr_stability,template_quality,composite_score,selected
+chest_152843,胸口,sensor_20260716_152843.csv,50.000,89.920,99.920,13,78.722,0.470438,0.462175,0.172142,0.422863,0.780425,0.489443,0
+abdomen_153115,腹部,sensor_20260716_153115.csv,50.000,80.220,90.220,12,68.806,0.472365,0.531410,0.185459,0.395622,0.747293,0.502223,1
+chairback_153454,椅背,sensor_20260716_153454.csv,50.000,72.500,82.500,11,63.727,0.439809,0.370637,0.211006,0.348181,0.799441,0.436695,0
