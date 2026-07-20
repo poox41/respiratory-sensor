@@ -5,11 +5,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.State
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -24,6 +23,18 @@ import kotlin.math.min
 
 // Draw the waveform.
 @Composable
+fun rememberWaveformFrame(refreshMs: Long = 50L): State<Long> {
+    val tick = remember { mutableLongStateOf(0L) }
+    LaunchedEffect(refreshMs) {
+        while (true) {
+            delay(refreshMs.coerceAtLeast(16L))
+            tick.longValue++
+        }
+    }
+    return tick
+}
+
+@Composable
 fun Waveform(
     modifier: Modifier = Modifier,
     buffer: RingBuffer,
@@ -32,22 +43,21 @@ fun Waveform(
     yMax: Float = 2f,
     windowMs: Long = 6000L,
     gain: Float = 1f,
+    windowMsProvider: (() -> Long)? = null,
+    gainProvider: (() -> Float)? = null,
     offset: Float = 0f,
     showGrid: Boolean = true,
     showZeroLine: Boolean = true,
     zeroLineValue: Float? = null,
-    peakTimes: List<Long> = emptyList()
+    peakTimes: List<Long> = emptyList(),
+    peakTimesProvider: (() -> List<Long>)? = null,
+    frameTick: State<Long>
 ) {
-    var tick by remember { mutableLongStateOf(0L) }
-    val effectiveGain = gain
-    LaunchedEffect(Unit) {
-        while (true) {
-            delay(33L) // ~30 FPS redraw
-            tick++
-        }
-    }
-    key(tick) {
+    key(frameTick.value) {
         Canvas(modifier = modifier.fillMaxWidth().height(140.dp)) {
+            val effectiveWindowMs = (windowMsProvider?.invoke() ?: windowMs).coerceAtLeast(1L)
+            val effectiveGain = gainProvider?.invoke() ?: gain
+            val effectivePeakTimes = peakTimesProvider?.invoke() ?: peakTimes
             val vMin = yMin
             val vMax = yMax
             val range = max(1e-6f, vMax - vMin)
@@ -96,12 +106,11 @@ fun Waveform(
                 }
             }
 
-            if (buffer.isEmpty()) return@Canvas
-            val (ts, vs) = buffer.snapshot()
+            val (ts, vs) = buffer.snapshotWindow(effectiveWindowMs)
             if (vs.isEmpty()) return@Canvas
 
             val tMax = ts[vs.lastIndex]
-            val tMin = tMax - windowMs
+            val tMin = tMax - effectiveWindowMs
 
             // Binary search for first visible sample
             var lo = 0
@@ -115,7 +124,7 @@ fun Waveform(
 
             for (i in lo until vs.size) {
                 val t = ts[i]
-                val xNorm = (t - tMin).toFloat() / windowMs.toFloat()
+                val xNorm = (t - tMin).toFloat() / effectiveWindowMs.toFloat()
                 val x = xNorm.coerceIn(0f, 1f) * w
                 if (x - lastX < minStepPx) continue
                 lastX = x
@@ -141,15 +150,15 @@ fun Waveform(
             }
 
             // Draw dashed rectangles between consecutive peaks (marking complete heart cycles)
-            if (peakTimes.size >= 2) {
+            if (effectivePeakTimes.size >= 2) {
                 val dash = PathEffect.dashPathEffect(floatArrayOf(4f, 3f))
                 val rectColor = Color.Red.copy(alpha = 0.35f)
-                for (i in 0 until peakTimes.size - 1) {
-                    val p1 = peakTimes[i]
-                    val p2 = peakTimes[i + 1]
+                for (i in 0 until effectivePeakTimes.size - 1) {
+                    val p1 = effectivePeakTimes[i]
+                    val p2 = effectivePeakTimes[i + 1]
                     if (p1 >= tMin) {
-                        val x1 = ((p1 - tMin).toFloat() / windowMs.toFloat()).coerceIn(0f, 1f) * w
-                        val x2 = ((p2 - tMin).toFloat() / windowMs.toFloat()).coerceIn(0f, 1f) * w
+                        val x1 = ((p1 - tMin).toFloat() / effectiveWindowMs.toFloat()).coerceIn(0f, 1f) * w
+                        val x2 = ((p2 - tMin).toFloat() / effectiveWindowMs.toFloat()).coerceIn(0f, 1f) * w
                         val rectPath = Path()
                         rectPath.moveTo(x1, 0f)
                         rectPath.lineTo(x2, 0f)

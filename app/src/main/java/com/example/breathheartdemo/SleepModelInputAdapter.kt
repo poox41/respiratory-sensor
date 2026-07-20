@@ -59,8 +59,8 @@ class SleepModelInputAdapter(
     private val maxImputedFraction = 0.05f
 
     fun progress(heartBuffer: RingBuffer, respirationBuffer: RingBuffer): SleepModelInputProgress {
-        val (heartTimes, _) = heartBuffer.snapshot()
-        val (respTimes, _) = respirationBuffer.snapshot()
+        val heartTimes = heartBuffer.timestampsSnapshot()
+        val respTimes = respirationBuffer.timestampsSnapshot()
         return inspectProgress(heartTimes, respTimes)
     }
 

@@ -13,11 +13,13 @@ class SensorDataLogger(private val context: Context) {
 
     private var writer: BufferedWriter? = null
     private var logFile: File? = null
+    @Volatile
     var isLogging = false
         private set
 
     private val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
 
+    @Synchronized
     fun startLogging(): File? {
         stopLogging()
         val dir = (context.getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS)
@@ -49,6 +51,7 @@ class SensorDataLogger(private val context: Context) {
         return logFile
     }
 
+    @Synchronized
     fun log(
         tMs: Long,
         rawX: Float,
@@ -172,10 +175,12 @@ class SensorDataLogger(private val context: Context) {
         }
     }
 
+    @Synchronized
     fun flush() {
         try { writer?.flush() } catch (_: Exception) {}
     }
 
+    @Synchronized
     fun stopLogging(): File? {
         isLogging = false
         try {

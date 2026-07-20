@@ -2,6 +2,7 @@
 
 import android.content.Context
 import android.os.Environment
+import android.os.SystemClock
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileWriter
@@ -32,6 +33,7 @@ class DataExporter(
     private var csvWriter: BufferedWriter? = null
     private var rawLogWriter: BufferedWriter? = null
     private var sampleIndex = 0L
+    private var lastFlushElapsedMs = 0L
 
     fun startSession(device: BleDevice?): File {
         close()
@@ -81,7 +83,7 @@ class DataExporter(
                 newLine()
             }
         }
-        csvWriter?.flush()
+        flushIfDue()
     }
 
     fun appendRawPacket(receiveTimeMs: Long, hex: String, byteCount: Int) {
@@ -95,8 +97,8 @@ class DataExporter(
             write(" hex=")
             write(hex)
             newLine()
-            flush()
         }
+        flushIfDue()
     }
 
     fun currentSessionPath(): String? = sessionDir?.absolutePath
@@ -113,6 +115,7 @@ class DataExporter(
         currentFile = null
         rawLogFile = null
         sessionDir = null
+        lastFlushElapsedMs = 0L
     }
 
     private fun openSessionFile(dir: File, startedAt: Long) {
@@ -133,9 +136,21 @@ class DataExporter(
             write("# 格式: [接收时间] receive_time_ms=... bytes=... hex=...")
             newLine()
         }
+        lastFlushElapsedMs = SystemClock.elapsedRealtime()
+    }
+
+    /** Batch disk flushes so BLE callbacks are not blocked on every packet. */
+    private fun flushIfDue() {
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastFlushElapsedMs < FLUSH_INTERVAL_MS) return
+        csvWriter?.flush()
+        rawLogWriter?.flush()
+        lastFlushElapsedMs = now
     }
 
     private fun sanitize(value: String): String {
         return value.replace(Regex("[^A-Za-z0-9._-]"), "_")
     }
 }
+
+private const val FLUSH_INTERVAL_MS = 1_000L

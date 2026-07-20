@@ -45,6 +45,13 @@ class SleepStateService(
     private val extractor = SleepFeatureExtractor()
     private val inputAdapter = SleepModelInputAdapter(fsHz = fsHz, windowSeconds = windowSeconds)
     private val config: SleepModelConfig by lazy { loadConfig() }
+    private val featureSequenceCache by lazy {
+        SleepFeatureSequenceCache(
+            sequenceLength = config.seqLen,
+            featureDimension = config.featureDim,
+            epochDurationMs = EPOCH_SECONDS * 1_000L
+        )
+    }
     private val env: OrtEnvironment by lazy { OrtEnvironment.getEnvironment() }
     private val session: OrtSession by lazy {
         env.createSession(context.assets.open(MODEL_ASSET).readBytes(), OrtSession.SessionOptions())
@@ -63,6 +70,10 @@ class SleepStateService(
         withContext(Dispatchers.Default) {
             predictBlocking(processor)
         }
+
+    fun resetFeatureCache() {
+        featureSequenceCache.clear()
+    }
 
     private fun predictBlocking(processor: Processor): SleepStateResult {
         val modelHealth = validateModelContract()
@@ -97,7 +108,11 @@ class SleepStateService(
         return try {
             var prediction: SleepStateResult? = null
             val elapsedMs = measureTimeMillis {
-                val features = buildFeatureTensor(modelInput.heart, modelInput.respiration)
+                val features = buildFeatureTensor(
+                    heart = modelInput.heart,
+                    respiration = modelInput.respiration,
+                    timestampMs = modelInput.timestampMs
+                )
                 val normalized = normalize(features, config)
                 val inputOutlierRatio = normalized.count { kotlin.math.abs(it) > 10f }
                     .toFloat() / normalized.size.coerceAtLeast(1)
@@ -196,21 +211,22 @@ class SleepStateService(
         return actual.indices.all { index -> actual[index] <= 0L || actual[index] == expected[index] }
     }
 
-    private fun buildFeatureTensor(heart: FloatArray, respiration: FloatArray): FloatArray {
+    private fun buildFeatureTensor(
+        heart: FloatArray,
+        respiration: FloatArray,
+        timestampMs: Long
+    ): FloatArray {
         val cfg = config
         val epochSamples = fsHz * EPOCH_SECONDS
-        val features = FloatArray(cfg.seqLen * cfg.featureDim)
         val start = heart.size - cfg.seqLen * epochSamples
-        for (epoch in 0 until cfg.seqLen) {
+        return featureSequenceCache.build(timestampMs) { epoch ->
             val from = start + epoch * epochSamples
             val to = from + epochSamples
-            val epochFeatures = extractor.extractEpoch(
+            extractor.extractEpoch(
                 heart50Hz = heart.copyOfRange(from, to),
                 respiration50Hz = respiration.copyOfRange(from, to)
             )
-            System.arraycopy(epochFeatures, 0, features, epoch * cfg.featureDim, cfg.featureDim)
         }
-        return features
     }
 
     private fun normalize(features: FloatArray, cfg: SleepModelConfig): FloatArray {

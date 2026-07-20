@@ -238,6 +238,7 @@ class Processor(private val fsHz: Int) {
     private var lastPeakBpm: Float? = null
 
     // DC removal: slow exponential-moving-average
+    @Volatile
    var sensorLogger: SensorDataLogger? = null
     @Volatile
     private var latestSleepPrediction: SleepStateResult? = null
@@ -257,6 +258,7 @@ class Processor(private val fsHz: Int) {
     val rawPreview: StateFlow<String> = _rawPreview
     private val _centeredPreview = MutableStateFlow("")
     val centeredPreview: StateFlow<String> = _centeredPreview
+    private var lastPreviewEmitMs = Long.MIN_VALUE
 
     private var lastHrEstimateMs = 0L
    private var lastRespEstimateMs = 0L
@@ -361,13 +363,16 @@ class Processor(private val fsHz: Int) {
         centeredIdx = (centeredIdx + 1) % 16
         if (centeredCount < 16) centeredCount++
 
-        _rawPreview.value = (0 until rawCount).joinToString(" ") { i ->
-            val v = recentRaw[(rawIdx - rawCount + i + 16) % 16]
-            if (v >= 0) " $v" else "$v"
-        }
-        _centeredPreview.value = (0 until centeredCount).joinToString(" ") { i ->
-            val v = recentCentered[(centeredIdx - centeredCount + i + 16) % 16]
-            if (v >= 0) " $v" else "$v"
+        if (lastPreviewEmitMs == Long.MIN_VALUE || t - lastPreviewEmitMs >= 250L) {
+            _rawPreview.value = (0 until rawCount).joinToString(" ") { i ->
+                val v = recentRaw[(rawIdx - rawCount + i + 16) % 16]
+                if (v >= 0) " $v" else "$v"
+            }
+            _centeredPreview.value = (0 until centeredCount).joinToString(" ") { i ->
+                val v = recentCentered[(centeredIdx - centeredCount + i + 16) % 16]
+                if (v >= 0) " $v" else "$v"
+            }
+            lastPreviewEmitMs = t
         }
 
         // --- Respiration: extract via long MA (retain 0.1~0.5 Hz) ---
@@ -659,6 +664,7 @@ class Processor(private val fsHz: Int) {
         respNormIdx = 0; respNormCount = 0; smoothRespP2P = 0f; smoothRespCenter = 0f
         rawIdx = 0; rawCount = 0
         centeredIdx = 0; centeredCount = 0
+        lastPreviewEmitMs = Long.MIN_VALUE
         _rawPreview.value = ""
         _centeredPreview.value = ""
         latestSleepPrediction = null

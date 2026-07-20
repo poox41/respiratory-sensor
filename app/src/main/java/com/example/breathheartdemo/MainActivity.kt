@@ -23,8 +23,13 @@ import androidx.core.content.ContextCompat
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
 import android.util.Log
@@ -46,7 +51,7 @@ fun AppScreen() {
     val context = LocalContext.current
     val processor = remember { Processor(fsHz) }
     val sleepStateService = remember { SleepStateService(context.applicationContext, fsHz) }
-    val rates by processor.rates.collectAsState()
+    val waveformFrame = rememberWaveformFrame(refreshMs = 50L)
 
     var useMock by remember { mutableStateOf(true) }
     var showBleDialog by remember { mutableStateOf(false) }
@@ -59,7 +64,7 @@ fun AppScreen() {
     var autoRespGain by remember { mutableStateOf(true) }
     var respGain by remember { mutableStateOf(1f) }
     val effectiveRawWindowMs = rememberAutoWindowMs(
-        rates = rates,
+        processor = processor,
         autoEnabled = autoRawWindow,
         manualWindowMs = rawWindowMs
     )
@@ -74,7 +79,8 @@ fun AppScreen() {
 
     val effectiveRawGain = rememberAutoGain(
         buffer = processor.rawBuf,
-        windowMs = effectiveRawWindowMs,
+        windowMs = 6000L,
+        windowMsState = effectiveRawWindowMs,
         yMin = -2000f,
         yMax = 2000f,
         autoEnabled = autoRawGain,
@@ -92,22 +98,6 @@ fun AppScreen() {
     val bleClient = remember { BleClient(context.applicationContext, fsHz) }
     val devices by bleClient.scanResults.collectAsState()
     val connectionState by bleClient.connectionState.collectAsState()
-    val rawHex by bleClient.rawHex.collectAsState()
-    val rawBytes by bleClient.rawBytes.collectAsState()
-    val connectionError by bleClient.connectionError.collectAsState()
-    val exportSessionPath by bleClient.exportSessionPath.collectAsState()
-    val exportFileName by bleClient.exportFileName.collectAsState()
-    val raw16Preview by bleClient.raw16Preview.collectAsState()
-    val rawPreview by processor.rawPreview.collectAsState()
-    val centeredPreview by processor.centeredPreview.collectAsState()
-    val cleanPeakTimes by processor.cleanPeakTimes.collectAsState()
-    val heartMorphologySnapshot by processor.heartMorphologySnapshot.collectAsState()
-    val morphologyPlaybackBoundaryTimes by processor.morphologyPlaybackBoundaryTimes.collectAsState()
-    val morphologyHeartWindowMs = if (heartMorphologySnapshot.ready) {
-        heartMorphologySnapshot.durationMs.coerceIn(4_000L, 12_000L)
-    } else {
-        7_000L
-    }
 
     val scope = rememberCoroutineScope()
     var job by remember { mutableStateOf<Job?>(null) }
@@ -117,10 +107,9 @@ fun AppScreen() {
     var sleepStateResult by remember { mutableStateOf<SleepStateResult?>(null) }
     var sleepStateAnalyzing by remember { mutableStateOf(false) }
     var sleepModelHealth by remember { mutableStateOf<SleepModelHealth?>(null) }
-    var sleepInputProgress by remember {
-        mutableStateOf(sleepStateService.inputProgress(processor))
+    val sleepInputProgress = remember {
+        MutableStateFlow(sleepStateService.inputProgress(processor))
     }
-    var autoSleepAnalysis by remember { mutableStateOf(true) }
     var lastSleepAnalysisSampleMs by remember { mutableStateOf<Long?>(null) }
     var lastConnectionState by remember { mutableStateOf<ConnectionState>(ConnectionState.Disconnected) }
 
@@ -139,14 +128,15 @@ fun AppScreen() {
     }
 
     LaunchedEffect(useMock) {
-        job?.cancel()
+        job?.cancelAndJoin()
+        sleepStateService.resetFeatureCache()
         processor.reset()
         sleepStateResult = null
         sleepStateAnalyzing = false
         lastSleepAnalysisSampleMs = null
-        sleepInputProgress = sleepStateService.inputProgress(processor)
+        sleepInputProgress.value = sleepStateService.inputProgress(processor)
         if (useMock) {
-            job = scope.launch {
+            job = scope.launch(Dispatchers.Default) {
                 MockDataSource(fsHz = fsHz).samples().collect { s ->
                     processor.onSample(s, bypassMotionDetection = true)
                 }
@@ -155,7 +145,7 @@ fun AppScreen() {
                 bleClient.stopScan()
             }
         } else {
-            job = scope.launch {
+            job = scope.launch(Dispatchers.Default) {
                 bleClient.samples.collect { s ->
                     processor.onSample(s)
                 }
@@ -197,6 +187,7 @@ fun AppScreen() {
         if (connectionState is ConnectionState.Connected &&
             lastConnectionState !is ConnectionState.Connected
         ) {
+            sleepStateService.resetFeatureCache()
             processor.reset()
             sleepStateResult = null
             lastSleepAnalysisSampleMs = null
@@ -235,25 +226,7 @@ fun AppScreen() {
                 )
             }
 
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    MetricCard(
-                        modifier = Modifier.weight(1f),
-                        title = stringResource(R.string.hr),
-                        value = rates.bpm?.let { "%.0f".format(it) } ?: "--",
-                        unit = stringResource(R.string.bpm_unit)
-                    )
-                    MetricCard(
-                        modifier = Modifier.weight(1f),
-                        title = stringResource(R.string.rr),
-                        value = rates.rpm?.let { "%.0f".format(it) } ?: "--",
-                        unit = stringResource(R.string.rpm_unit)
-                    )
-                }
-            }
+            item { VitalSignsRow(processor) }
 
             item {
                 Card(
@@ -261,79 +234,44 @@ fun AppScreen() {
                     shape = MaterialTheme.shapes.large
                 ) {
                     Column(modifier = Modifier.padding(14.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Sleep State",
-                                    style = MaterialTheme.typography.titleMedium
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Text(
-                                    text = sleepStateText(
-                                        result = sleepStateResult,
-                                        analyzing = sleepStateAnalyzing
-                                    ),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.height(8.dp))
-                                Text(
-                                    text = sleepModelStatusText(sleepModelHealth),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = if (sleepModelHealth?.ready == false) {
-                                        MaterialTheme.colorScheme.error
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurfaceVariant
+                        Text(
+                            text = "Sleep Diagnosis",
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            text = "Sleeping",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = sleepStateValue(
+                                result = sleepStateResult,
+                                analyzing = sleepStateAnalyzing
+                            ),
+                            style = MaterialTheme.typography.headlineMedium
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        SleepCollectionProgress(sleepInputProgress)
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = {
+                                sleepStateAnalyzing = true
+                                sleepStateResult = null
+                                scope.launch {
+                                    val result = sleepStateService.predict(processor, processor.rates.value)
+                                    sleepStateResult = result
+                                    processor.updateSleepPrediction(result)
+                                    if (result.code == 0) {
+                                        lastSleepAnalysisSampleMs = result.timestampMs
                                     }
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                LinearProgressIndicator(
-                                    progress = { sleepInputProgress.fraction },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Text(
-                                    text = sleepInputProgressText(sleepInputProgress),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(Modifier.height(6.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Switch(
-                                        checked = autoSleepAnalysis,
-                                        onCheckedChange = { autoSleepAnalysis = it },
-                                        enabled = sleepModelHealth?.ready != false
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = "Auto update every 30 s after 5.5 min warm-up",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
+                                    sleepStateAnalyzing = false
                                 }
-                            }
-                            Spacer(Modifier.width(12.dp))
-                            Button(
-                                onClick = {
-                                    sleepStateAnalyzing = true
-                                    sleepStateResult = null
-                                    scope.launch {
-                                        val result = sleepStateService.predict(processor, rates)
-                                        sleepStateResult = result
-                                        processor.updateSleepPrediction(result)
-                                        if (result.code == 0) {
-                                            lastSleepAnalysisSampleMs = result.timestampMs
-                                        }
-                                        sleepStateAnalyzing = false
-                                    }
-                                },
-                                enabled = !sleepStateAnalyzing && sleepModelHealth?.ready != false
-                            ) {
-                                Text("Analyze Sleep State")
-                            }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !sleepStateAnalyzing && sleepModelHealth?.ready != false
+                        ) {
+                            Text(if (sleepStateAnalyzing) "Analyzing..." else "Analyze")
                         }
                     }
                 }
@@ -376,7 +314,6 @@ fun AppScreen() {
                                 onClick = {
                                     useMock = false
                                     showBleDialog = true
-                                    processor.reset()
                                 },
                                 enabled = !showBleDialog
                             ) { Text(stringResource(R.string.ble)) }
@@ -390,11 +327,7 @@ fun AppScreen() {
                 Card(shape = MaterialTheme.shapes.large) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(text = "Sensor Data Preview (s16)", style = MaterialTheme.typography.titleMedium)
-                        Text(
-                            text = "Raw s16: $rawPreview",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        RawSensorPreview(processor)
                         Spacer(Modifier.height(6.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -429,11 +362,7 @@ fun AppScreen() {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                        Text(
-                            text = "DC Removed: $centeredPreview",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        CenteredSensorPreview(processor)
                     }
                 }
             }
@@ -446,10 +375,13 @@ fun AppScreen() {
                             color = MaterialTheme.colorScheme.primary,
                             yMin = -2000f,
                             yMax = 2000f,
-                            windowMs = effectiveRawWindowMs,
-                            gain = effectiveRawGain,
+                            windowMs = 6000L,
+                            windowMsProvider = { effectiveRawWindowMs.value },
+                            gain = 1f,
+                            gainProvider = { effectiveRawGain.value },
                             showGrid = true,
-                            showZeroLine = true
+                            showZeroLine = true,
+                            frameTick = waveformFrame
                         )
                         Spacer(Modifier.height(8.dp))
                         Row(
@@ -487,14 +419,7 @@ fun AppScreen() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (autoRawGain) {
-                                    "Gain Auto (x" + String.format("%.1f", effectiveRawGain) + ")"
-                                } else {
-                                    "Gain x" + String.format("%.1f", rawGain)
-                                },
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            AutoGainLabel(autoRawGain, effectiveRawGain, rawGain)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
                                     onClick = { rawGain = (rawGain / 1.2f).coerceIn(0.1f, 200f) },
@@ -516,14 +441,7 @@ fun AppScreen() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (autoRawWindow) {
-                                    "Window Auto (" + String.format("%.1f", effectiveRawWindowMs / 1000f) + "s)"
-                                } else {
-                                    "Window " + String.format("%.1f", rawWindowMs / 1000f) + "s"
-                                },
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            AutoWindowLabel(autoRawWindow, effectiveRawWindowMs, rawWindowMs)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
                                     onClick = {
@@ -556,9 +474,11 @@ fun AppScreen() {
                             yMin = -2000f,
                             yMax = 2000f,
                             windowMs = 10000L,
-                            gain = effectiveRespGain,
+                            gain = 1f,
+                            gainProvider = { effectiveRespGain.value },
                             showGrid = true,
-                            showZeroLine = true
+                            showZeroLine = true,
+                            frameTick = waveformFrame
                         )
                         Spacer(Modifier.height(8.dp))
                         Row(
@@ -575,14 +495,7 @@ fun AppScreen() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (autoRespGain) {
-                                    "Gain Auto (x" + String.format("%.1f", effectiveRespGain) + ")"
-                                } else {
-                                    "Gain x" + String.format("%.1f", respGain)
-                                },
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            AutoGainLabel(autoRespGain, effectiveRespGain, respGain)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
                                     onClick = { respGain = (respGain / 1.2f).coerceIn(0.1f, 200f) },
@@ -611,11 +524,13 @@ fun AppScreen() {
                             yMin = -300f,
                         yMax = 300f,
                         windowMs = 10000L,
-                        gain = effectiveHrGain,
+                        gain = 1f,
+                        gainProvider = { effectiveHrGain.value },
                             showGrid = true,
                             showZeroLine = true,
                             zeroLineValue = 0f,
-                        peakTimes = cleanPeakTimes
+                        peakTimesProvider = { processor.cleanPeakTimes.value },
+                        frameTick = waveformFrame
                     )
                     Spacer(Modifier.height(8.dp))
                         Row(
@@ -638,14 +553,7 @@ fun AppScreen() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = if (autoHrGain) {
-                                    "Gain Auto (x" + String.format("%.1f", effectiveHrGain) + ")"
-                                } else {
-                                    "Gain x" + String.format("%.1f", hrGain)
-                                },
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            AutoGainLabel(autoHrGain, effectiveHrGain, hrGain)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
                                     onClick = { hrGain = (hrGain / 1.2f).coerceIn(0.1f, 200f) },
@@ -672,12 +580,18 @@ fun AppScreen() {
                         color = MaterialTheme.colorScheme.tertiary,
                         yMin = -0.8f,
                         yMax = 1.15f,
-                        windowMs = morphologyHeartWindowMs,
+                        windowMs = 7_000L,
+                        windowMsProvider = {
+                            val snapshot = processor.heartMorphologySnapshot.value
+                            if (snapshot.ready) snapshot.durationMs.coerceIn(4_000L, 12_000L)
+                            else 7_000L
+                        },
                         gain = 1f,
                         showGrid = true,
                         showZeroLine = true,
                         zeroLineValue = 0f,
-                        peakTimes = morphologyPlaybackBoundaryTimes
+                        peakTimesProvider = { processor.morphologyPlaybackBoundaryTimes.value },
+                        frameTick = waveformFrame
                     )
                 }
             }
@@ -688,22 +602,23 @@ fun AppScreen() {
         sleepModelHealth = sleepStateService.checkModel()
     }
 
-    LaunchedEffect(autoSleepAnalysis, sleepModelHealth?.ready) {
+    LaunchedEffect(sleepModelHealth?.ready) {
         while (true) {
             delay(1_000L)
-            val progress = sleepStateService.inputProgress(processor)
-            sleepInputProgress = progress
+            val progress = withContext(Dispatchers.Default) {
+                sleepStateService.inputProgress(processor)
+            }
+            sleepInputProgress.value = progress
             val lastAnalyzed = lastSleepAnalysisSampleMs
             val newWindowAvailable = progress.timestampMs != null &&
                 (lastAnalyzed == null || progress.timestampMs - lastAnalyzed >= 30_000L)
-            if (autoSleepAnalysis &&
-                sleepModelHealth?.ready == true &&
+            if (sleepModelHealth?.ready == true &&
                 progress.ready &&
                 newWindowAvailable &&
                 !sleepStateAnalyzing
             ) {
                 sleepStateAnalyzing = true
-                val result = sleepStateService.predict(processor, rates)
+                val result = sleepStateService.predict(processor, processor.rates.value)
                 sleepStateResult = result
                 processor.updateSleepPrediction(result)
                 lastSleepAnalysisSampleMs = result.timestampMs ?: progress.timestampMs
@@ -770,79 +685,75 @@ internal fun calculateEnhancedHeartWindowMs(): Long = 10_000L
 
 @Composable
 private fun rememberAutoWindowMs(
-    rates: Rates,
+    processor: Processor,
     autoEnabled: Boolean,
     manualWindowMs: Long
-): Long {
-    var autoWindowMs by remember { mutableLongStateOf(manualWindowMs) }
+): State<Long> {
+    val autoWindowMs = remember { mutableLongStateOf(manualWindowMs) }
 
-    LaunchedEffect(autoEnabled, manualWindowMs, rates.bpm, rates.rpm) {
+    LaunchedEffect(processor, autoEnabled, manualWindowMs) {
         if (!autoEnabled) {
-            autoWindowMs = manualWindowMs
+            autoWindowMs.longValue = manualWindowMs
             return@LaunchedEffect
         }
 
-        val bpm = rates.bpm
-        val rpm = rates.rpm
-        val targetMs = when {
-            bpm != null && bpm > 1f -> ((8f * 60_000f) / bpm).toLong()
-            rpm != null && rpm > 0.2f -> ((2.5f * 60_000f) / rpm).toLong()
-            else -> 6000L
-        }.coerceIn(2000L, 15000L)
+        while (true) {
+            val rates = processor.rates.value
+            val bpm = rates.bpm
+            val rpm = rates.rpm
+            val targetMs = when {
+                bpm != null && bpm > 1f -> ((8f * 60_000f) / bpm).toLong()
+                rpm != null && rpm > 0.2f -> ((2.5f * 60_000f) / rpm).toLong()
+                else -> 6000L
+            }.coerceIn(2000L, 15000L)
 
-        autoWindowMs = (autoWindowMs * 0.7f + targetMs * 0.3f).toLong()
+            autoWindowMs.longValue =
+                (autoWindowMs.longValue * 0.7f + targetMs * 0.3f).toLong()
+            delay(1_000L)
+        }
     }
 
-    return if (autoEnabled) autoWindowMs else manualWindowMs
+    return autoWindowMs
 }
 
 @Composable
 private fun rememberAutoGain(
     buffer: RingBuffer,
     windowMs: Long,
+    windowMsState: State<Long>? = null,
     yMin: Float,
     yMax: Float,
     autoEnabled: Boolean,
     manualGain: Float
-): Float {
-    var autoGain by remember { mutableFloatStateOf(manualGain) }
+): State<Float> {
+    val autoGain = remember { mutableFloatStateOf(manualGain) }
 
-    LaunchedEffect(buffer, windowMs, yMin, yMax, autoEnabled, manualGain) {
+    LaunchedEffect(buffer, windowMs, windowMsState, yMin, yMax, autoEnabled, manualGain) {
         if (!autoEnabled) {
-            autoGain = manualGain
+            autoGain.floatValue = manualGain
             return@LaunchedEffect
         }
 
         while (true) {
-            val (ts, vs) = buffer.snapshot()
-            if (vs.isNotEmpty()) {
-                val tMax = ts[vs.lastIndex]
-                val tMin = tMax - windowMs
-                var minV = Float.POSITIVE_INFINITY
-                var maxV = Float.NEGATIVE_INFINITY
-
-                for (i in vs.indices) {
-                    if (ts[i] < tMin) continue
-                    minV = min(minV, vs[i])
-                    maxV = max(maxV, vs[i])
-                }
-
-                if (minV != Float.POSITIVE_INFINITY && maxV != Float.NEGATIVE_INFINITY) {
-                    val p2p = max(1f, maxV - minV)
+            val recentRange = buffer.valueRange(windowMsState?.value ?: windowMs)
+            if (recentRange != null) {
+                val minV = recentRange.minimum
+                val maxV = recentRange.maximum
+                if (recentRange.sampleCount > 1) {
                     val maxExtent = maxOf(kotlin.math.abs(minV), kotlin.math.abs(maxV), 1f)
                     val range = max(1f, yMax - yMin)
                     val halfRange = (yMax - yMin) / 2f
                     // 基于最大幅值计算增益，避免DC偏置导致削顶
                     // targetGain = 半量程 * 0.72 / maxExtent
                     val targetGain = (halfRange * 0.72f / maxExtent).coerceIn(0.1f, 200f)
-                    autoGain = autoGain * 0.75f + targetGain * 0.25f
+                    autoGain.floatValue = autoGain.floatValue * 0.75f + targetGain * 0.25f
                 }
             }
-            delay(120L)
+            delay(250L)
         }
     }
 
-    return if (autoEnabled) autoGain else manualGain
+    return autoGain
 }
 
 @Composable
@@ -1048,50 +959,129 @@ private fun hasBleConnectPermission(context: android.content.Context): Boolean {
     }
 }
 
-private fun sleepStateText(result: SleepStateResult?, analyzing: Boolean): String {
-    if (analyzing) return "Analyzing..."
-    if (result == null) return "Waiting for analysis"
-
+private fun sleepStateValue(result: SleepStateResult?, analyzing: Boolean): String {
+    if (analyzing) return "..."
+    if (result == null) return "--"
     return when (result.code) {
-        0 -> "Experimental output: ${result.stateName}; sleep probability " +
-            "${"%.0f".format(result.confidence * 100f)}%; " +
-            "${result.inferenceTimeMs ?: 0L} ms" +
-            if ((result.inputOutlierRatio ?: 0f) >= 0.05f) {
-                "; WARNING: ${"%.0f".format((result.inputOutlierRatio ?: 0f) * 100f)}% " +
-                    "of normalized features are far outside the training distribution."
-            } else {
-                " (not a medical diagnosis)"
-            }
-        1001 -> "Insufficient data. Continue recording and try again (${result.message})"
-        1002 -> "Unable to determine the current state: poor signal quality (${result.message})"
-        1004 -> "Model unavailable: ${result.message}"
-        else -> "State recognition failed: ${result.message}"
+        0 -> if (result.state == "sleep") "Yes" else "No"
+        1001 -> "Collecting"
+        1002 -> "Unknown"
+        1004 -> "Unavailable"
+        else -> "Failed"
     }
 }
 
-private fun sleepModelStatusText(health: SleepModelHealth?): String {
-    if (health == null) return "Checking ONNX model and configuration..."
-    if (!health.ready) return "Model contract check failed: ${health.message}"
-    return "${health.modelVersion} loaded; input ${health.inputShape}. " +
-        "ONNX/config verified, real-sensor feature parity is not yet validated."
+@Composable
+private fun RawSensorPreview(processor: Processor) {
+    val value by processor.rawPreview.collectAsState()
+    Text(
+        text = "Raw s16: $value",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
-private fun sleepInputProgressText(progress: SleepModelInputProgress): String {
-    return if (progress.ready) {
-        if (progress.imputedSamples > 0) {
-            "Input ready with brief-motion tolerance: ${"%.1f".format(
-                progress.imputedSamples * 100f / progress.requiredSamples
-            )}% reconstructed; max gap ${progress.maxGapMs}ms."
+@Composable
+private fun CenteredSensorPreview(processor: Processor) {
+    val value by processor.centeredPreview.collectAsState()
+    Text(
+        text = "DC Removed: $value",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.primary
+    )
+}
+
+private fun sleepCollectionProgressValue(progress: SleepModelInputProgress): String {
+    if (progress.ready) return "${progress.requiredSeconds} / ${progress.requiredSeconds} s · Ready"
+    if (progress.collectedSamples >= progress.requiredSamples) {
+        return "${progress.requiredSeconds} / ${progress.requiredSeconds} s · Signal poor"
+    }
+    val collectedSeconds = progress.collectedSeconds
+        .coerceAtMost((progress.requiredSeconds - 1).coerceAtLeast(0).toFloat())
+        .toInt()
+    return "$collectedSeconds / ${progress.requiredSeconds} s"
+}
+
+@Composable
+private fun SleepCollectionProgress(progressFlow: StateFlow<SleepModelInputProgress>) {
+    val progress by progressFlow.collectAsState()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "Collection Progress",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = sleepCollectionProgressValue(progress),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    Spacer(Modifier.height(6.dp))
+    LinearProgressIndicator(
+        progress = { progress.fraction },
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+private fun VitalSignsRow(processor: Processor) {
+    val rates by processor.rates.collectAsState()
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        MetricCard(
+            modifier = Modifier.weight(1f),
+            title = stringResource(R.string.hr),
+            value = rates.bpm?.let { "%.0f".format(it) } ?: "--",
+            unit = stringResource(R.string.bpm_unit)
+        )
+        MetricCard(
+            modifier = Modifier.weight(1f),
+            title = stringResource(R.string.rr),
+            value = rates.rpm?.let { "%.0f".format(it) } ?: "--",
+            unit = stringResource(R.string.rpm_unit)
+        )
+    }
+}
+
+@Composable
+private fun AutoGainLabel(
+    autoEnabled: Boolean,
+    autoGain: State<Float>,
+    manualGain: Float
+) {
+    val gain = if (autoEnabled) autoGain.value else manualGain
+    Text(
+        text = if (autoEnabled) {
+            "Gain Auto (x${String.format("%.1f", gain)})"
         } else {
-            "Continuous input ready: ${progress.requiredSeconds}s (11 x 30s rolling window)."
-        }
-    } else if (progress.collectedSamples >= progress.requiredSamples && !progress.qualityAcceptable) {
-        "Too much motion in the rolling window (max gap ${progress.maxGapMs}ms). " +
-            "Keep measuring; a cleaner window will replace it automatically."
-    } else {
-        "Continuous input: ${"%.1f".format(progress.collectedSeconds)}/" +
-            "${progress.requiredSeconds}s; ${"%.1f".format(progress.remainingSeconds)}s remaining."
-    }
+            "Gain x${String.format("%.1f", gain)}"
+        },
+        style = MaterialTheme.typography.bodyMedium
+    )
+}
+
+@Composable
+private fun AutoWindowLabel(
+    autoEnabled: Boolean,
+    autoWindowMs: State<Long>,
+    manualWindowMs: Long
+) {
+    val windowMs = if (autoEnabled) autoWindowMs.value else manualWindowMs
+    Text(
+        text = if (autoEnabled) {
+            "Window Auto (${String.format("%.1f", windowMs / 1000f)}s)"
+        } else {
+            "Window ${String.format("%.1f", windowMs / 1000f)}s"
+        },
+        style = MaterialTheme.typography.bodyMedium
+    )
 }
 
 
