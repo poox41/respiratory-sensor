@@ -47,9 +47,13 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("MissingPermission")
 fun AppScreen() {
-    val fsHz = 50
+    val acquisitionConfig = remember { SensorAcquisitionConfig.OFFLINE_INFERRED_PROFILE }
+    val fsHz = acquisitionConfig.processingSampleRateHz
     val context = LocalContext.current
     val processor = remember { Processor(fsHz) }
+    DisposableEffect(processor) {
+        onDispose { processor.close() }
+    }
     val sleepStateService = remember { SleepStateService(context.applicationContext, fsHz) }
     val waveformFrame = rememberWaveformFrame(refreshMs = 50L)
 
@@ -59,22 +63,31 @@ fun AppScreen() {
     var autoRawWindow by remember { mutableStateOf(true) }
     var rawGain by remember { mutableStateOf(1f) }
     var rawWindowMs by remember { mutableStateOf(6000L) }
-    var autoHrGain by remember { mutableStateOf(true) }
-    var hrGain by remember { mutableStateOf(1f) }
     var autoRespGain by remember { mutableStateOf(true) }
     var respGain by remember { mutableStateOf(1f) }
+    var autoHeartGain by remember { mutableStateOf(true) }
+    var heartGain by remember { mutableStateOf(1f) }
+    // The primary chart remains on one layered-VMD source for the complete
+    // acquisition. Its waveform is the selected VMD cardiac fundamental plus
+    // only measured, period-synchronous harmonic detail; no synthetic spike is
+    // added and the broad 1-8 Hz candidate never replaces this chart.
+    val heartbeatWaveformBuffer = processor.vmdMorphologyBuf
+    val heartbeatEnhancementBuffer = processor.morphologyHeartBuf
     val effectiveRawWindowMs = rememberAutoWindowMs(
         processor = processor,
         autoEnabled = autoRawWindow,
         manualWindowMs = rawWindowMs
     )
     val effectiveHrGain = rememberAutoGain(
-        buffer = processor.cleanHeartBuf,
-        windowMs = 6000L,
-        yMin = -300f,
-        yMax = 300f,
-        autoEnabled = autoHrGain,
-        manualGain = hrGain
+        buffer = heartbeatWaveformBuffer,
+        // Use the same interval as the chart.  Otherwise a large sample in the
+        // older four seconds can unexpectedly rescale the complete 10 s frame.
+        windowMs = 10000L,
+        yMin = -1.5f,
+        yMax = 1.5f,
+        autoEnabled = autoHeartGain,
+        manualGain = heartGain,
+        minimumSignalExtent = 0.05f
     )
 
     val effectiveRawGain = rememberAutoGain(
@@ -95,7 +108,9 @@ fun AppScreen() {
         manualGain = respGain
     )
 
-    val bleClient = remember { BleClient(context.applicationContext, fsHz) }
+    val bleClient = remember {
+        BleClient(context.applicationContext, acquisitionConfig)
+    }
     val devices by bleClient.scanResults.collectAsState()
     val connectionState by bleClient.connectionState.collectAsState()
 
@@ -337,7 +352,10 @@ fun AppScreen() {
                             val btnLogger = processor.sensorLogger
                             if (btnLogger == null) {
                                Button(onClick = {
-                                   val l = SensorDataLogger(context.applicationContext)
+                                   val l = SensorDataLogger(
+                                       context.applicationContext,
+                                       acquisitionConfig
+                                   )
                                     val f = l.startLogging()
                                     sensorLogPath = f?.absolutePath
                                    processor.sensorLogger = l
@@ -516,35 +534,34 @@ fun AppScreen() {
             }
 
             item {
-                ChartCard(title = stringResource(R.string.chart_hr)) {
+                ChartCard(title = "Heartbeat waveform") {
                     Column {
                         Waveform(
-                            buffer = processor.cleanHeartBuf,
+                            buffer = heartbeatWaveformBuffer,
                             color = MaterialTheme.colorScheme.error,
-                            yMin = -300f,
-                        yMax = 300f,
-                        windowMs = 10000L,
-                        gain = 1f,
-                        gainProvider = { effectiveHrGain.value },
+                            yMin = -1.5f,
+                            yMax = 1.5f,
+                            windowMs = 10000L,
+                            gain = 1f,
+                            gainProvider = { effectiveHrGain.value },
                             showGrid = true,
                             showZeroLine = true,
                             zeroLineValue = 0f,
-                        peakTimesProvider = { processor.cleanPeakTimes.value },
-                        frameTick = waveformFrame
-                    )
-                    Spacer(Modifier.height(8.dp))
+                            // Leave enough vertical room for a newly arriving large
+                            // beat before the 250 ms auto-gain loop can react.
+                            headroomFraction = 0.78f,
+                            frameTick = waveformFrame
+                        )
+                        Spacer(Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text(
-                                text = "Auto Gain",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
+                            Text(text = "Auto Gain", style = MaterialTheme.typography.bodyMedium)
                             Switch(
-                                checked = autoHrGain,
-                                onCheckedChange = { autoHrGain = it }
+                                checked = autoHeartGain,
+                                onCheckedChange = { autoHeartGain = it }
                             )
                         }
                         Spacer(Modifier.height(8.dp))
@@ -553,20 +570,24 @@ fun AppScreen() {
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            AutoGainLabel(autoHrGain, effectiveHrGain, hrGain)
+                            AutoGainLabel(autoHeartGain, effectiveHrGain, heartGain)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(
-                                    onClick = { hrGain = (hrGain / 1.2f).coerceIn(0.1f, 200f) },
-                                    enabled = !autoHrGain
+                                    onClick = {
+                                        heartGain = (heartGain / 1.2f).coerceIn(0.1f, 200f)
+                                    },
+                                    enabled = !autoHeartGain
                                 ) { Text("-") }
                                 OutlinedButton(
-                                    onClick = { hrGain = 1f },
-                                    enabled = !autoHrGain
+                                    onClick = { heartGain = 1f },
+                                    enabled = !autoHeartGain
                                 ) { Text("Reset") }
                                 Button(
-                                    onClick = { hrGain = (hrGain * 1.2f).coerceIn(0.1f, 200f) },
-                                    enabled = !autoHrGain
-                                ) { Text("+ ") }
+                                    onClick = {
+                                        heartGain = (heartGain * 1.2f).coerceIn(0.1f, 200f)
+                                    },
+                                    enabled = !autoHeartGain
+                                ) { Text("+") }
                             }
                         }
                     }
@@ -574,22 +595,32 @@ fun AppScreen() {
             }
 
             item {
-                ChartCard(title = "Heartbeat Enhancement") {
+                ChartCard(title = "Heartbeat enhancement") {
                     Waveform(
-                        buffer = processor.morphologyHeartBuf,
+                        // Completed real cycles are replayed sample by sample at
+                        // the sensor cadence. Snapshot updates never replace the
+                        // visible history, so the chart remains continuous.
+                        buffer = heartbeatEnhancementBuffer,
                         color = MaterialTheme.colorScheme.tertiary,
                         yMin = -0.8f,
                         yMax = 1.15f,
                         windowMs = 7_000L,
                         windowMsProvider = {
                             val snapshot = processor.heartMorphologySnapshot.value
-                            if (snapshot.ready) snapshot.durationMs.coerceIn(4_000L, 12_000L)
-                            else 7_000L
+                            if (snapshot.ready) {
+                                snapshot.durationMs.coerceIn(4_000L, 12_000L)
+                            } else {
+                                7_000L
+                            }
                         },
                         gain = 1f,
                         showGrid = true,
                         showZeroLine = true,
                         zeroLineValue = 0f,
+                        // Morphology cycles are normalized, but their real
+                        // residual can still vary. Fit every visible cycle with
+                        // headroom instead of clipping it at the card boundary.
+                        headroomFraction = 0.80f,
                         peakTimesProvider = { processor.morphologyPlaybackBoundaryTimes.value },
                         frameTick = waveformFrame
                     )
@@ -724,7 +755,8 @@ private fun rememberAutoGain(
     yMin: Float,
     yMax: Float,
     autoEnabled: Boolean,
-    manualGain: Float
+    manualGain: Float,
+    minimumSignalExtent: Float = 1f
 ): State<Float> {
     val autoGain = remember { mutableFloatStateOf(manualGain) }
 
@@ -740,13 +772,22 @@ private fun rememberAutoGain(
                 val minV = recentRange.minimum
                 val maxV = recentRange.maximum
                 if (recentRange.sampleCount > 1) {
-                    val maxExtent = maxOf(kotlin.math.abs(minV), kotlin.math.abs(maxV), 1f)
+                    val maxExtent = maxOf(
+                        kotlin.math.abs(minV),
+                        kotlin.math.abs(maxV),
+                        minimumSignalExtent.coerceAtLeast(1e-6f)
+                    )
                     val range = max(1f, yMax - yMin)
                     val halfRange = (yMax - yMin) / 2f
-                    // 基于最大幅值计算增益，避免DC偏置导致削顶
-                    // targetGain = 半量程 * 0.72 / maxExtent
-                    val targetGain = (halfRange * 0.72f / maxExtent).coerceIn(0.1f, 200f)
-                    autoGain.floatValue = autoGain.floatValue * 0.75f + targetGain * 0.25f
+                    // Keep 38% total vertical reserve.  Increasing gain is
+                    // deliberately slow; decreasing gain is immediate so a new
+                    // large heartbeat cannot remain clipped for several frames.
+                    val targetGain = (halfRange * 0.62f / maxExtent).coerceIn(0.1f, 200f)
+                    autoGain.floatValue = if (targetGain < autoGain.floatValue) {
+                        targetGain
+                    } else {
+                        autoGain.floatValue * 0.90f + targetGain * 0.10f
+                    }
                 }
             }
             delay(250L)
@@ -761,7 +802,8 @@ private fun MetricCard(
     modifier: Modifier = Modifier,
     title: String,
     value: String,
-    unit: String
+    unit: String,
+    status: String? = null
 ) {
     Card(
         modifier = modifier,
@@ -779,6 +821,14 @@ private fun MetricCard(
                 Text(
                     text = unit,
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (status != null) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = status,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

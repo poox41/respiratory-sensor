@@ -10,6 +10,7 @@ package com.example.breathheartdemo
 class HeartbeatMorphologyDelayedPlayer(
     private val fsHz: Int,
     val delayMs: Long = 3_000L,
+    private val maximumHeldRepeatMs: Long = 20_000L,
     private val maximumDisplaySlopePerSecond: Float = 15f
 ) {
     private var snapshot = MorphologyWaveformSnapshot()
@@ -28,13 +29,72 @@ class HeartbeatMorphologyDelayedPlayer(
         snapshot = nextSnapshot
     }
 
-    /** Returns one continuously replayed value for [timeMs], or null before ready. */
-    fun next(timeMs: Long): Float? {
+    /**
+     * Refill a display buffer after startup or a long playback gap.
+     *
+     * Only snapshot samples whose delayed presentation time is not in the
+     * future are copied. [currentValue] closes a possible interpolation gap at
+     * [timeMs]. This prevents a retained chart from collapsing to one point
+     * when live playback resumes after several seconds.
+     */
+    fun seedDisplayHistory(
+        buffer: RingBuffer,
+        timeMs: Long,
+        currentValue: Float
+    ): Boolean {
+        if (!snapshot.ready || snapshot.timesMs.size < 2) return false
+        var sourceCount = 0
+        while (sourceCount < snapshot.timesMs.size &&
+            snapshot.timesMs[sourceCount] + delayMs <= timeMs
+        ) {
+            sourceCount++
+        }
+        if (sourceCount < 2) return false
+
+        val lastDelayedTime = snapshot.timesMs[sourceCount - 1] + delayMs
+        val appendCurrent = lastDelayedTime < timeMs
+        val outputSize = sourceCount + if (appendCurrent) 1 else 0
+        val times = LongArray(outputSize)
+        val values = FloatArray(outputSize)
+        for (index in 0 until sourceCount) {
+            times[index] = snapshot.timesMs[index] + delayMs
+            values[index] = snapshot.values[index]
+        }
+        if (appendCurrent) {
+            times[outputSize - 1] = timeMs
+            values[outputSize - 1] = currentValue
+        }
+        buffer.replace(times, values)
+        return true
+    }
+
+    /**
+     * Returns one continuously replayed value for [timeMs], or null before ready.
+     *
+     * During an explicitly invalid/recovery interval, [allowHeldRepeat] may
+     * repeat only the final completed real cycle for a bounded time. This is a
+     * display hold: it never enters BPM, VMD, sleep features, or any estimator.
+     * It prevents the enhancement card from becoming empty while the strict
+     * 16-second clean-window path reacquires.
+     */
+    fun next(timeMs: Long, allowHeldRepeat: Boolean = false): Float? {
         if (!snapshot.ready || snapshot.timesMs.isEmpty()) return null
-        val sourceTimeMs = timeMs - delayMs
+        var sourceTimeMs = timeMs - delayMs
         val times = snapshot.timesMs
         val values = snapshot.values
-        if (sourceTimeMs < times.first() || sourceTimeMs > times.last()) return null
+        if (sourceTimeMs < times.first()) return null
+        if (sourceTimeMs > times.last()) {
+            if (!allowHeldRepeat || sourceTimeMs - times.last() > maximumHeldRepeatMs) {
+                return null
+            }
+            val boundaries = snapshot.boundaryTimesMs
+            if (boundaries.size < 2) return null
+            val cycleStart = boundaries[boundaries.lastIndex - 1]
+            val cycleEnd = boundaries.last()
+            val cycleDuration = cycleEnd - cycleStart
+            if (cycleDuration <= 0L) return null
+            sourceTimeMs = cycleStart + (sourceTimeMs - cycleStart) % cycleDuration
+        }
 
         var low = 0
         var high = times.lastIndex

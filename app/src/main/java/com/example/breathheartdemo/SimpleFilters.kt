@@ -1,22 +1,20 @@
 package com.example.breathheartdemo
 
-/** Adaptive DcBlocker: remove DC offset via error-driven adaptive EMA
- *  Small error -> alphaSlow (0.001) for stable tracking
- *  Sustained large error -> triggers alphaFast (0.01) temporarily,
- *  enabling quick convergence after position changes or motion.
- *  Auto-reverts to slow mode when error stabilizes.
- *  dc initialized to first sample value for instant startup convergence.
+/**
+ * Slow DC tracker used to remove sensor offset without following respiration.
+ *
+ * The previous error-triggered fast mode was active during normal abdominal
+ * breathing because its 60-ADC threshold was below the physiological signal
+ * amplitude.  That made the reported `dc` value contain respiration.  A
+ * bounded, fixed-rate update keeps the baseline slow and predictable.  The
+ * first sample still initializes the tracker immediately.
  */
 class DcBlocker(
-    private val alphaSlow: Float = 0.001f,
-    private val alphaFast: Float = 0.01f,
-    private val errorThreshold: Float = 60f,
-    private val fastHoldSamples: Int = 250
+    private val alpha: Float = 0.001f,
+    private val maxStepPerSample: Float = 0.5f
 ) {
     var dc = 2600f
         private set
-    private var errorEma = 0f
-    private var fastTimer = 0
     private var firstSample = true
 
     fun next(x: Float): Float {
@@ -25,25 +23,14 @@ class DcBlocker(
             dc = x
             firstSample = false
         }
-        val error = kotlin.math.abs(x - dc)
-        // Smoothed error estimate
-        errorEma += 0.05f * (error - errorEma)
-        // Enter fast mode if sustained error exceeds threshold
-        if (errorEma > errorThreshold) {
-            fastTimer = fastHoldSamples
-        }
-        val alpha = if (fastTimer > 0) {
-            fastTimer--
-            alphaFast
-        } else {
-            alphaSlow
-        }
-        dc += alpha * (x - dc)
+        val step = (alpha * (x - dc)).coerceIn(-maxStepPerSample, maxStepPerSample)
+        dc += step
         return x - dc
     }
 
     fun clear() {
-        dc = 2600f; errorEma = 0f; fastTimer = 0; firstSample = true
+        dc = 2600f
+        firstSample = true
     }
 }
 // Simple filters for separating respiration and heart signals.
@@ -72,6 +59,7 @@ class MovingAverage(private val windowSize: Int) {
 class ShortSmoother(windowSize: Int) {
     private val ma = MovingAverage(windowSize)
     fun next(x: Float) = ma.next(x)
+    fun clear() = ma.clear()
 }
 
 
@@ -79,6 +67,10 @@ class DualSmoother(windowSize: Int) {
     private val ma1 = MovingAverage(windowSize)
     private val ma2 = MovingAverage(windowSize)
     fun next(x: Float): Float = ma2.next(ma1.next(x))
+    fun clear() {
+        ma1.clear()
+        ma2.clear()
+    }
 }
 
 class HighPassFilter(private val alpha: Float) {
@@ -144,10 +136,14 @@ class BiquadFilter private constructor(
     companion object {
         private const val BUTTERWORTH_Q = 0.70710678f
 
-        fun lowPass(cutoffHz: Float, sampleRate: Int): BiquadFilter {
+        fun lowPass(
+            cutoffHz: Float,
+            sampleRate: Int,
+            q: Float = BUTTERWORTH_Q
+        ): BiquadFilter {
             val omega = 2.0 * Math.PI * cutoffHz / sampleRate
             val cosOmega = kotlin.math.cos(omega).toFloat()
-            val alpha = (kotlin.math.sin(omega) / (2.0 * BUTTERWORTH_Q)).toFloat()
+            val alpha = (kotlin.math.sin(omega) / (2.0 * q)).toFloat()
             val a0 = 1f + alpha
             return BiquadFilter(
                 b0 = ((1f - cosOmega) / 2f) / a0,
@@ -158,10 +154,14 @@ class BiquadFilter private constructor(
             )
         }
 
-        fun highPass(cutoffHz: Float, sampleRate: Int): BiquadFilter {
+        fun highPass(
+            cutoffHz: Float,
+            sampleRate: Int,
+            q: Float = BUTTERWORTH_Q
+        ): BiquadFilter {
             val omega = 2.0 * Math.PI * cutoffHz / sampleRate
             val cosOmega = kotlin.math.cos(omega).toFloat()
-            val alpha = (kotlin.math.sin(omega) / (2.0 * BUTTERWORTH_Q)).toFloat()
+            val alpha = (kotlin.math.sin(omega) / (2.0 * q)).toFloat()
             val a0 = 1f + alpha
             return BiquadFilter(
                 b0 = ((1f + cosOmega) / 2f) / a0,
@@ -181,8 +181,8 @@ class DifferentialHeartSeparator(private val windowSize: Int = 10, private val d
     private var maSum = 0f
     private var maCount = 0
 
-    // Stage 2: Delay Buffer (compensates half-window group delay)
-    private val delayBuf = FloatArray(delaySteps)
+    // Stage 2: raw-signal delay buffer (compensates the MA group delay)
+    private val delayBuf = FloatArray(maxOf(1, delaySteps))
     private var delayIdx = 0
     private var delayCount = 0
 
@@ -195,14 +195,22 @@ class DifferentialHeartSeparator(private val windowSize: Int = 10, private val d
         if (maCount < windowSize) maCount++
         val mean = maSum / maCount
 
-        // Stage 2: Delay the MA by 5 samples (0.1s at 50Hz)
-        val delayed = delayBuf[delayIdx]
-        delayBuf[delayIdx] = mean
-        delayIdx = (delayIdx + 1) % delaySteps
-        if (delayCount < delaySteps) delayCount++
+        // The paper delays the original signal, not the moving average:
+        // d(n) = x(n-5) - MA10{x(n)} at 50 Hz.
+        val delayedRaw: Float
+        val delayReady: Boolean
+        if (delaySteps == 0) {
+            delayedRaw = x
+            delayReady = true
+        } else {
+            delayedRaw = delayBuf[delayIdx]
+            delayReady = delayCount >= delaySteps
+            delayBuf[delayIdx] = x
+            delayIdx = (delayIdx + 1) % delaySteps
+            if (delayCount < delaySteps) delayCount++
+        }
 
-        // Stage 3: Difference: d(n) = x(n) - MA_delayed(n)
-        return if (delayCount >= delaySteps) x - delayed else 0f
+        return if (maCount >= windowSize && delayReady) delayedRaw - mean else 0f
     }
 
     fun clear() {
@@ -388,7 +396,10 @@ class DualPeakDetector(
 data class WindowedHeartDetection(
     val detected: Boolean = false,
     val bpm: Float? = null,
-    val peakTimeMs: Long? = null
+    val peakTimeMs: Long? = null,
+    /** Interval regularity and history support in [0, 1]. */
+    val quality: Float = 0f,
+    val intervalCount: Int = 0
 )
 
 /**
@@ -399,7 +410,9 @@ data class WindowedHeartDetection(
 class WindowedHeartPeakDetector(
     private val threshold: Float = 0.3f,
     private val groupWindowMs: Long = 300L,
-    private val refractoryMs: Long = 500L
+    private val refractoryMs: Long = 500L,
+    private val minIntervalMs: Long = refractoryMs,
+    private val maxIntervalMs: Long = 1_500L
 ) {
     private var previous2 = 0f
     private var previous1 = 0f
@@ -452,18 +465,37 @@ class WindowedHeartPeakDetector(
         }
 
         var bpm: Float? = null
+        var quality = 0f
         if (lastAcceptedTimeMs > 0L) {
             val intervalMs = peakTimeMs - lastAcceptedTimeMs
-            if (intervalMs in 500L..1500L) {
+            if (intervalMs in minIntervalMs..maxIntervalMs) {
                 recentIntervalsMs.addLast(intervalMs)
                 while (recentIntervalsMs.size > 5) recentIntervalsMs.removeFirst()
                 val sorted = recentIntervalsMs.sorted()
                 val medianMs = sorted[sorted.size / 2]
                 bpm = 60_000f / medianMs
+                val mean = recentIntervalsMs.average()
+                val variance = recentIntervalsMs.sumOf {
+                    val difference = it - mean
+                    difference * difference
+                } / recentIntervalsMs.size
+                val coefficientOfVariation = if (mean > 0.0) {
+                    kotlin.math.sqrt(variance) / mean
+                } else 1.0
+                val historySupport = (recentIntervalsMs.size / 4f).coerceIn(0f, 1f)
+                val regularity = (1.0 - coefficientOfVariation / 0.25)
+                    .coerceIn(0.0, 1.0).toFloat()
+                quality = historySupport * regularity
             }
         }
         lastAcceptedTimeMs = peakTimeMs
-        return WindowedHeartDetection(detected = true, bpm = bpm, peakTimeMs = peakTimeMs)
+        return WindowedHeartDetection(
+            detected = true,
+            bpm = bpm,
+            peakTimeMs = peakTimeMs,
+            quality = quality,
+            intervalCount = recentIntervalsMs.size
+        )
     }
 
     fun clear() {
@@ -585,8 +617,8 @@ class BreathingRateDetector {
 
 /** Zero-crossing based RPM estimator.
  *  Counts positive zero crossings of the respiratory signal over a
- *  sliding window, then converts to RPM:  RPM = zc_count * 30 / windowSec
- *  Each positive zero crossing = 0.5 respiratory cycles.
+ *  sliding window, then converts to RPM: RPM = count * 60 / windowSec.
+ *  Each positive-going zero crossing represents one respiratory cycle.
  *  Immune to intra-cycle sub-peaks that inflate derivative-based detectors.
  */
 class ZeroCrossingRpm(
@@ -609,9 +641,9 @@ class ZeroCrossingRpm(
             crossings.removeFirst()
         }
 
-        // RPM = zc_pos * (60 / windowSec)  (each positive ZC = 1 breath)
+        // RPM = positive crossings * (60 / windowSec)
         return if (crossings.size >= 2) {
-            crossings.size.toFloat() * 30f / windowSec
+            crossings.size.toFloat() * 60f / windowSec
         } else null
     }
 
@@ -627,22 +659,126 @@ data class RespCycleDetection(
 )
 
 /**
- * Full-cycle respiratory-rate estimator. One positive-going zero crossing is
- * one complete breath, so rate is calculated from crossing-to-crossing time.
+ * Low-delay startup estimator for respiration.
+ *
+ * A first value is emitted only after peak-valley-peak (or the inverse), so it
+ * still observes one complete breath. Two adjacent half periods must agree;
+ * the full-cycle Schmitt detector remains the preferred long-term estimator.
+ */
+class RespirationStartupRateDetector(
+    private val minHalfCycleMs: Long = 1_000L,
+    private val maxHalfCycleMs: Long = 5_000L,
+    private val maximumHalfCycleRatio: Float = 1.35f,
+    private val minimumSwing: Float = 10f
+) {
+    private var previousValue = 0f
+    private var previousTimeMs = 0L
+    private var trend = 0
+    private var sampleCount = 0
+    private var lastExtremumTimeMs = 0L
+    private var lastExtremumValue = 0f
+    private var previousHalfCycleMs: Long? = null
+
+    fun next(value: Float, timeMs: Long): Float? {
+        if (sampleCount == 0) {
+            previousValue = value
+            previousTimeMs = timeMs
+            sampleCount = 1
+            return null
+        }
+
+        val difference = value - previousValue
+        val nextTrend = when {
+            difference > 1e-5f -> 1
+            difference < -1e-5f -> -1
+            else -> trend
+        }
+        var rpm: Float? = null
+        if (trend != 0 && nextTrend != 0 && nextTrend != trend) {
+            val extremumTimeMs = previousTimeMs
+            val extremumValue = previousValue
+            if (lastExtremumTimeMs == 0L) {
+                lastExtremumTimeMs = extremumTimeMs
+                lastExtremumValue = extremumValue
+            } else {
+                val halfCycleMs = extremumTimeMs - lastExtremumTimeMs
+                val swing = kotlin.math.abs(extremumValue - lastExtremumValue)
+                if (halfCycleMs in minHalfCycleMs..maxHalfCycleMs &&
+                    swing >= minimumSwing
+                ) {
+                    val previousHalf = previousHalfCycleMs
+                    if (previousHalf != null) {
+                        val ratio = maxOf(previousHalf, halfCycleMs).toFloat() /
+                            minOf(previousHalf, halfCycleMs).toFloat()
+                        if (ratio <= maximumHalfCycleRatio) {
+                            rpm = (30_000f / halfCycleMs).takeIf { it in 6f..30f }
+                        }
+                    }
+                    previousHalfCycleMs = halfCycleMs
+                    lastExtremumTimeMs = extremumTimeMs
+                    lastExtremumValue = extremumValue
+                } else if (halfCycleMs > maxHalfCycleMs * 2L) {
+                    previousHalfCycleMs = null
+                    lastExtremumTimeMs = extremumTimeMs
+                    lastExtremumValue = extremumValue
+                }
+            }
+        }
+        trend = nextTrend
+        previousValue = value
+        previousTimeMs = timeMs
+        sampleCount++
+        return rpm
+    }
+
+    fun clear() {
+        previousValue = 0f
+        previousTimeMs = 0L
+        trend = 0
+        sampleCount = 0
+        lastExtremumTimeMs = 0L
+        lastExtremumValue = 0f
+        previousHalfCycleMs = null
+    }
+}
+
+/**
+ * Full-cycle respiratory-rate estimator. A slowly tracked center and adaptive
+ * Schmitt hysteresis suppress small zero-crossing chatter. One armed
+ * negative-to-positive crossing represents one complete breath.
  */
 class RespCycleRateDetector(
     private val minCycleMs: Long = 2_000L,
     private val maxCycleMs: Long = 10_000L,
-    private val historySize: Int = 5
+    private val historySize: Int = 5,
+    private val centerAlpha: Float = 0.0005f,
+    private val envelopeAlpha: Float = 0.01f,
+    private val hysteresisFraction: Float = 0.20f,
+    private val minHysteresis: Float = 2f
 ) {
-    private var previous = 0f
+    private var center = 0f
+    private var envelope = 0f
+    private var initialized = false
+    private var armedBelow = false
     private var lastCrossingTimeMs = 0L
     private val cycleHistoryMs = ArrayDeque<Long>()
 
     fun next(resp: Float, timeMs: Long): RespCycleDetection {
-        val crossed = previous <= 0f && resp > 0f
-        previous = resp
+        if (!initialized) {
+            center = resp
+            initialized = true
+            return RespCycleDetection()
+        }
+
+        center += centerAlpha * (resp - center)
+        val centered = resp - center
+        envelope += envelopeAlpha * (kotlin.math.abs(centered) - envelope)
+        val hysteresis = maxOf(minHysteresis, envelope * hysteresisFraction)
+
+        if (centered <= -hysteresis) armedBelow = true
+        val crossed = armedBelow && centered >= hysteresis
         if (!crossed) return RespCycleDetection()
+        armedBelow = false
 
         var rpm: Float? = null
         if (lastCrossingTimeMs > 0L) {
@@ -660,7 +796,10 @@ class RespCycleRateDetector(
     }
 
     fun clear() {
-        previous = 0f
+        center = 0f
+        envelope = 0f
+        initialized = false
+        armedBelow = false
         lastCrossingTimeMs = 0L
         cycleHistoryMs.clear()
     }
@@ -668,19 +807,20 @@ class RespCycleRateDetector(
 
 data class HeartPeriodicityResult(
     val bpm: Float? = null,
-    val quality: Float? = null
+    val quality: Float? = null,
+    val candidates: List<HeartRateCandidateEvidence> = emptyList()
 )
 
 /**
- * Diagnostic heart-rate estimator based on waveform periodicity rather than
- * individual threshold crossings.  The result is intentionally kept separate
- * from the displayed BPM until it has been checked against recorded data.
+ * Heart-rate estimator based on waveform periodicity rather than individual
+ * threshold crossings. A longer window is used because a four-second window
+ * contains too few slow heart cycles to resolve half/double-rate ambiguity.
  */
 class HeartPeriodicityEstimator(
     private val fsHz: Int,
     private val windowSeconds: Int = 15,
     private val updateIntervalMs: Long = 1_000L,
-    private val minBpm: Float = 50f,
+    private val minBpm: Float = 40f,
     private val maxBpm: Float = 110f,
     private val minimumQuality: Float = 0.18f
 ) {
@@ -713,6 +853,7 @@ class HeartPeriodicityEstimator(
 
         val minLag = kotlin.math.ceil(fsHz * 60f / maxBpm).toInt()
         val maxLag = kotlin.math.floor(fsHz * 60f / minBpm).toInt()
+        val correlations = FloatArray(maxLag + 1)
         var bestLag = 0
         var bestCorrelation = Float.NEGATIVE_INFINITY
         for (lag in minLag..maxLag) {
@@ -728,18 +869,77 @@ class HeartPeriodicityEstimator(
             }
             val denominator = kotlin.math.sqrt(energyA * energyB)
             val correlation = if (denominator > 1e-9) (cross / denominator).toFloat() else 0f
+            correlations[lag] = correlation
             if (correlation > bestCorrelation) {
                 bestCorrelation = correlation
                 bestLag = lag
             }
         }
 
-        val bpm = if (bestLag > 0 && bestCorrelation >= minimumQuality) {
-            fsHz * 60f / bestLag
+        // A multi-feature BCG beat can make the two-beat lag slightly stronger
+        // than the one-beat lag (for example, 80 bpm appearing as 40 bpm).
+        // Prefer the half-lag only when its correlation is nearly as strong;
+        // the formal BPM path still requires agreement with an independent
+        // spectrum estimate.
+        var selectedLag = bestLag
+        var selectedCorrelation = bestCorrelation
+        if (bestLag > 0) {
+            val halfLag = bestLag / 2
+            val from = maxOf(minLag, halfLag - 2)
+            val to = minOf(maxLag, halfLag + 2)
+            var harmonicLag = 0
+            var harmonicCorrelation = Float.NEGATIVE_INFINITY
+            for (candidateLag in from..to) {
+                val candidateCorrelation = correlations[candidateLag]
+                if (kotlin.math.abs(bestLag - candidateLag * 2) <= 3 &&
+                    candidateCorrelation >= minimumQuality &&
+                    candidateCorrelation >= bestCorrelation * 0.80f &&
+                    candidateCorrelation > harmonicCorrelation
+                ) {
+                    harmonicLag = candidateLag
+                    harmonicCorrelation = candidateCorrelation
+                }
+            }
+            if (harmonicLag > 0) {
+                selectedLag = harmonicLag
+                selectedCorrelation = harmonicCorrelation
+            }
+        }
+
+        val bpm = if (selectedLag > 0 && selectedCorrelation >= minimumQuality) {
+            fsHz * 60f / selectedLag
         } else {
             null
         }
-        lastResult = HeartPeriodicityResult(bpm = bpm, quality = bestCorrelation.coerceAtLeast(0f))
+        val candidates = ArrayList<HeartRateCandidateEvidence>()
+        for (lag in minLag..maxLag) {
+            val correlation = correlations[lag]
+            val left = if (lag > minLag) correlations[lag - 1] else Float.NEGATIVE_INFINITY
+            val right = if (lag < maxLag) correlations[lag + 1] else Float.NEGATIVE_INFINITY
+            if (correlation >= minimumQuality * 0.60f &&
+                correlation >= left && correlation >= right
+            ) {
+                candidates += HeartRateCandidateEvidence(
+                    bpm = fsHz * 60f / lag,
+                    strength = correlation.coerceIn(0f, 1f)
+                )
+            }
+        }
+        val distinctCandidates = candidates
+            .sortedByDescending { it.strength }
+            .fold(ArrayList<HeartRateCandidateEvidence>()) { selected, candidate ->
+                if (selected.none { kotlin.math.abs(it.bpm - candidate.bpm) < 4f }) {
+                    selected += candidate
+                }
+                selected
+            }
+            .take(6)
+
+        lastResult = HeartPeriodicityResult(
+            bpm = bpm,
+            quality = selectedCorrelation.coerceAtLeast(0f),
+            candidates = distinctCandidates
+        )
         return lastResult
     }
 
@@ -748,6 +948,128 @@ class HeartPeriodicityEstimator(
         lastSampleTimeMs = 0L
         lastUpdateTimeMs = 0L
         lastResult = HeartPeriodicityResult()
+    }
+}
+
+data class HeartSpectrumResult(
+    val bpm: Float? = null,
+    /** Dominant-bin power divided by the median power in the search band. */
+    val peakRatio: Float? = null,
+    val candidates: List<HeartRateCandidateEvidence> = emptyList()
+)
+
+/**
+ * Independent short-time spectrum estimator used to confirm autocorrelation.
+ * It deliberately does not notch respiration harmonics: a harmonic can occupy
+ * exactly the same frequency as the true heart fundamental and cannot then be
+ * separated by a fixed frequency-domain hole.
+ */
+class HeartSpectrumEstimator(
+    private val fsHz: Int,
+    private val windowSeconds: Int = 10,
+    private val updateIntervalMs: Long = 1_000L,
+    private val minBpm: Float = 40f,
+    private val maxBpm: Float = 110f,
+    private val minimumPeakRatio: Float = 3f
+) {
+    private val samples = ArrayDeque<Float>()
+    private val capacity = fsHz * windowSeconds
+    private var lastSampleTimeMs = 0L
+    private var lastUpdateTimeMs = 0L
+    private var lastResult = HeartSpectrumResult()
+
+    fun next(value: Float, timeMs: Long): HeartSpectrumResult {
+        val expectedStepMs = 1_000L / fsHz
+        if (lastSampleTimeMs > 0L && timeMs - lastSampleTimeMs > expectedStepMs * 3L) {
+            clear()
+        }
+        lastSampleTimeMs = timeMs
+
+        samples.addLast(value)
+        while (samples.size > capacity) samples.removeFirst()
+        if (samples.size < capacity || timeMs - lastUpdateTimeMs < updateIntervalMs) {
+            return lastResult
+        }
+        lastUpdateTimeMs = timeMs
+
+        val values = samples.toFloatArray()
+        var mean = 0.0
+        for (sample in values) mean += sample
+        mean /= values.size
+
+        // A fine frequency grid improves the displayed estimate without
+        // pretending that the physical resolution exceeds the 10 s window.
+        val minHz = minBpm / 60.0
+        val maxHz = maxBpm / 60.0
+        val stepHz = 0.01
+        val binCount = kotlin.math.floor((maxHz - minHz) / stepHz).toInt() + 1
+        val powers = FloatArray(binCount)
+        var bestIndex = 0
+        var bestPower = Float.NEGATIVE_INFINITY
+        for (bin in 0 until binCount) {
+            val frequency = minHz + bin * stepHz
+            var real = 0.0
+            var imaginary = 0.0
+            for (index in values.indices) {
+                val window = if (values.size > 1) {
+                    0.5 - 0.5 * kotlin.math.cos(2.0 * Math.PI * index / (values.size - 1))
+                } else 1.0
+                val centered = (values[index] - mean) * window
+                val angle = 2.0 * Math.PI * frequency * index / fsHz
+                real += centered * kotlin.math.cos(angle)
+                imaginary -= centered * kotlin.math.sin(angle)
+            }
+            val power = (real * real + imaginary * imaginary).toFloat()
+            powers[bin] = power
+            if (power > bestPower) {
+                bestPower = power
+                bestIndex = bin
+            }
+        }
+
+        val sortedPowers = powers.copyOf().apply { sort() }
+        val medianPower = if (sortedPowers.isNotEmpty()) {
+            sortedPowers[sortedPowers.size / 2]
+        } else 0f
+        val peakRatio = if (medianPower > 1e-12f) bestPower / medianPower else 0f
+        val bpm = if (bestPower > 1e-12f && peakRatio >= minimumPeakRatio) {
+            ((minHz + bestIndex * stepHz) * 60.0).toFloat()
+        } else null
+        val candidates = ArrayList<HeartRateCandidateEvidence>()
+        for (bin in powers.indices) {
+            val power = powers[bin]
+            val left = if (bin > 0) powers[bin - 1] else Float.NEGATIVE_INFINITY
+            val right = if (bin < powers.lastIndex) powers[bin + 1] else Float.NEGATIVE_INFINITY
+            val ratio = if (medianPower > 1e-12f) power / medianPower else 0f
+            if (ratio >= 1.5f && power >= left && power >= right) {
+                candidates += HeartRateCandidateEvidence(
+                    bpm = ((minHz + bin * stepHz) * 60.0).toFloat(),
+                    strength = ratio
+                )
+            }
+        }
+        val distinctCandidates = candidates
+            .sortedByDescending { it.strength }
+            .fold(ArrayList<HeartRateCandidateEvidence>()) { selected, candidate ->
+                if (selected.none { kotlin.math.abs(it.bpm - candidate.bpm) < 4f }) {
+                    selected += candidate
+                }
+                selected
+            }
+            .take(6)
+        lastResult = HeartSpectrumResult(
+            bpm = bpm,
+            peakRatio = peakRatio,
+            candidates = distinctCandidates
+        )
+        return lastResult
+    }
+
+    fun clear() {
+        samples.clear()
+        lastSampleTimeMs = 0L
+        lastUpdateTimeMs = 0L
+        lastResult = HeartSpectrumResult()
     }
 }
 

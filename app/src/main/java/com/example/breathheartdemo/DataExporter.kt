@@ -32,11 +32,30 @@ class DataExporter(
     private var rawLogFile: File? = null
     private var csvWriter: BufferedWriter? = null
     private var rawLogWriter: BufferedWriter? = null
+    private var inputTimingWriter: BufferedWriter? = null
+    private var configuredProcessorSampleRateHz = 50
+    private var configuredHardwareSampleRateHz: Int? = 50
+    private var configuredDecodedValueRateHz = 100
+    private var configuredDecodedValuesPerProcessorSample = 2
+    private var configuredRateEvidence = "unknown"
+    private var configuredInputResamplingMode = "unknown"
+    private var packetIndex = 0L
     private var sampleIndex = 0L
     private var lastFlushElapsedMs = 0L
 
-    fun startSession(device: BleDevice?): File {
+    fun startSession(
+        device: BleDevice?,
+        acquisitionConfig: SensorAcquisitionConfig
+    ): File {
         close()
+        configuredProcessorSampleRateHz = acquisitionConfig.processingSampleRateHz
+        configuredHardwareSampleRateHz = acquisitionConfig.hardwareSampleRateHz
+        configuredDecodedValueRateHz = acquisitionConfig.decodedValueRateHz
+        configuredDecodedValuesPerProcessorSample =
+            acquisitionConfig.decodedValuesPerProcessorSample
+        configuredRateEvidence = acquisitionConfig.evidence
+        configuredInputResamplingMode = acquisitionConfig.inputResamplingMode
+        packetIndex = 0L
         rootDir.mkdirs()
         val startedAt = System.currentTimeMillis()
         val safeDevice = sanitize(device?.address ?: "unknown")
@@ -51,6 +70,14 @@ class DataExporter(
                 appendLine("started_at=${Date(startedAt)}")
                 appendLine("device_name=${device?.name ?: ""}")
                 appendLine("device_address=${device?.address ?: ""}")
+                appendLine("configured_hardware_sample_rate_hz=${acquisitionConfig.hardwareSampleRateHz ?: "unknown"}")
+                appendLine("sample_rate_evidence=${acquisitionConfig.evidence}")
+                appendLine("processor_sample_rate_hz=${acquisitionConfig.processingSampleRateHz}")
+                appendLine("decoded_values_per_processor_sample=${acquisitionConfig.decodedValuesPerProcessorSample}")
+                appendLine("expected_decoded_value_rate_hz=${acquisitionConfig.decodedValueRateHz}")
+                appendLine("input_mode=${acquisitionConfig.inputResamplingMode}")
+                appendLine("samples_csv_mode=every_decoded_wire_value_before_pair_averaging")
+                appendLine("decoder=little_endian_int16_stream")
             }
         )
         sessionDir = dir
@@ -103,6 +130,35 @@ class DataExporter(
 
     fun currentSessionPath(): String? = sessionDir?.absolutePath
 
+    fun appendInputTiming(
+        receiveTimeMs: Long,
+        receiveElapsedMs: Long,
+        payloadBytes: Int,
+        decodedValues: Int,
+        totalDecodedValues: Long,
+        expectedDecodedValueRateHz: Int,
+        observedValuesPerSecond: Double?,
+        sampleClockLeadMs: Long?,
+        rateStatus: String,
+        processorSamplesProduced: Long,
+        failedSampleEmissions: Long,
+        callbackApi: String
+    ) {
+        val writer = inputTimingWriter ?: return
+        packetIndex++
+        writer.write(listOf(
+            packetIndex, receiveTimeMs, receiveElapsedMs, payloadBytes, decodedValues,
+            totalDecodedValues, configuredHardwareSampleRateHz ?: "",
+            configuredRateEvidence, configuredProcessorSampleRateHz,
+            configuredDecodedValuesPerProcessorSample, expectedDecodedValueRateHz,
+            configuredInputResamplingMode,
+            observedValuesPerSecond ?: "", sampleClockLeadMs ?: "", rateStatus,
+            processorSamplesProduced, failedSampleEmissions, callbackApi
+        ).joinToString(","))
+        writer.newLine()
+        flushIfDue()
+    }
+
     fun currentFileName(): String? = currentFile?.name
 
     fun close() {
@@ -112,6 +168,9 @@ class DataExporter(
         rawLogWriter?.flush()
         rawLogWriter?.close()
         rawLogWriter = null
+        inputTimingWriter?.flush()
+        inputTimingWriter?.close()
+        inputTimingWriter = null
         currentFile = null
         rawLogFile = null
         sessionDir = null
@@ -136,6 +195,17 @@ class DataExporter(
             write("# 格式: [接收时间] receive_time_ms=... bytes=... hex=...")
             newLine()
         }
+        val timingFile = dir.resolve("input_timing_${sessionFormat.format(Date(startedAt))}.csv")
+        inputTimingWriter = BufferedWriter(FileWriter(timingFile, true)).apply {
+            write("packet_index,receive_time_ms,receive_elapsed_ms,payload_bytes,decoded_values," +
+                "total_decoded_values,configured_hardware_sample_rate_hz,sample_rate_evidence," +
+                "configured_processor_sample_rate_hz," +
+                "decoded_values_per_processor_sample,expected_decoded_value_rate_hz," +
+                "input_resampling_mode," +
+                "observed_values_per_second,sample_clock_lead_ms,rate_status," +
+                "processor_samples_produced,failed_sample_emissions,callback_api")
+            newLine()
+        }
         lastFlushElapsedMs = SystemClock.elapsedRealtime()
     }
 
@@ -145,6 +215,7 @@ class DataExporter(
         if (now - lastFlushElapsedMs < FLUSH_INTERVAL_MS) return
         csvWriter?.flush()
         rawLogWriter?.flush()
+        inputTimingWriter?.flush()
         lastFlushElapsedMs = now
     }
 

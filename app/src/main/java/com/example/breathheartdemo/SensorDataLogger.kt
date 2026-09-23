@@ -9,7 +9,11 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-class SensorDataLogger(private val context: Context) {
+class SensorDataLogger(
+    private val context: Context,
+    private val acquisitionConfig: SensorAcquisitionConfig =
+        SensorAcquisitionConfig.OFFLINE_INFERRED_PROFILE
+) {
 
     private var writer: BufferedWriter? = null
     private var logFile: File? = null
@@ -29,17 +33,26 @@ class SensorDataLogger(private val context: Context) {
         logFile = File(dir, fileName)
         writer = BufferedWriter(FileWriter(logFile!!, true))
         writer?.write(
-            "time_ms,time_str,rawX,xDc,dc,xF,resp," +
+            "time_ms,time_str,hardwareSampleRateHz,decodedValueRateHz," +
+                "processingSampleRateHz,sampleRateEvidence,rawX,xDc,dc,xF,resp," +
                 "hrRaw,hrF1,hrF,hrFilt,hrCalc,hrDisplay,heartCandidate,heartEnvelope," +
-                "cleanHeart,cleanHeartEnvelope,heartTemplateInput," +
+                "cleanHeart,cleanHeartEnvelope,trackedHeart,trackedHeartCenterHz," +
+                "vmdHeartbeat,vmdMorphology," +
+                "heartTemplateInput," +
                 "heartTemplateEnhanced,heartTemplateQuality," +
                 "heartTemplateCycles,heartTemplateReady," +
                 "heartMorphologyEnhanced,heartMorphologyReady," +
                 "heartMorphologyCycles,heartMorphologyQuality," +
-                "heartMorphologyDelayMs,heartMorphologyBoundary,normHr," +
+                "heartMorphologyDelayMs,heartMorphologyBoundary," +
+                "heartMorphologyReferenceBpm,heartMorphologyReferenceSource," +
+                "heartMorphologyReferenceAgeMs,normHr," +
                 "windowedPeak,windowedBpm,periodicBpm,periodicQuality," +
                 "cleanPeriodicBpm,cleanPeriodicQuality,cleanPeak,cleanPeakBpm," +
-                "thresholdPeak,dualPeakBpm,bpm,rpm,rpm_zc," +
+                "thresholdPeak,dualPeakBpm,bpm,heartRateSource,heartRateStale," +
+                "heartRatePrimaryCandidate,heartRateAlternateCandidate," +
+                "heartRateAmbiguityReason,heartRateConfidence," +
+                "vmdTrackingState,vmdComputeTimeMs,signalQuality," +
+                "slowContactRawRange,slowContactRmsRatio,rpm,rpm_zc," +
                 "respCycle,cycleRpm," +
                 "presenceState,presenceScore,heartEnvelope10s,heartStd10s," +
                 "sleepPredictedState,sleepProbability,sleepResultCode," +
@@ -69,6 +82,10 @@ class SensorDataLogger(private val context: Context) {
         heartEnvelope: Float,
         cleanHeart: Float,
         cleanHeartEnvelope: Float,
+        trackedHeart: Float,
+        trackedHeartCenterHz: Float,
+        vmdHeartbeat: Float?,
+        vmdMorphology: Float?,
         heartTemplateInput: Float,
         heartTemplateEnhanced: Float,
         heartTemplateQuality: Float?,
@@ -80,6 +97,9 @@ class SensorDataLogger(private val context: Context) {
         heartMorphologyQuality: Float?,
         heartMorphologyDelayMs: Long,
         heartMorphologyBoundary: Boolean,
+        heartMorphologyReferenceBpm: Float?,
+        heartMorphologyReferenceSource: String,
+        heartMorphologyReferenceAgeMs: Long?,
         normHr: Float,
         windowedPeak: Boolean,
         windowedBpm: Float?,
@@ -92,6 +112,17 @@ class SensorDataLogger(private val context: Context) {
         thresholdPeak: Boolean,
         dualPeakBpm: Float?,
         bpm: Float? = null,
+        heartRateSource: String? = null,
+        heartRateStale: Boolean = false,
+        heartRatePrimaryCandidate: Float? = null,
+        heartRateAlternateCandidate: Float? = null,
+        heartRateAmbiguityReason: String? = null,
+        heartRateConfidence: Float? = null,
+        vmdTrackingState: String? = null,
+        vmdComputeTimeMs: Long? = null,
+        signalQuality: String? = null,
+        slowContactRawRange: Float? = null,
+        slowContactRmsRatio: Float? = null,
         rpm: Float? = null,
         rpmZc: Float? = null,
         respCycle: Boolean,
@@ -114,6 +145,10 @@ class SensorDataLogger(private val context: Context) {
             writer?.apply {
                 write(tMs.toString()); write(",")
                 write(dateFormat.format(Date(tMs))); write(",")
+                write(acquisitionConfig.hardwareSampleRateHz?.toString() ?: ""); write(",")
+                write(acquisitionConfig.decodedValueRateHz.toString()); write(",")
+                write(acquisitionConfig.processingSampleRateHz.toString()); write(",")
+                write(acquisitionConfig.evidence); write(",")
                 write(rawX.toString()); write(",")
                 write(xDc.toString()); write(",")
                 write(dc.toString()); write(",")
@@ -129,6 +164,10 @@ class SensorDataLogger(private val context: Context) {
                 write(heartEnvelope.toString()); write(",")
                 write(cleanHeart.toString()); write(",")
                 write(cleanHeartEnvelope.toString()); write(",")
+                write(trackedHeart.toString()); write(",")
+                write(trackedHeartCenterHz.toString()); write(",")
+                write(vmdHeartbeat?.toString() ?: ""); write(",")
+                write(vmdMorphology?.toString() ?: ""); write(",")
                 write(heartTemplateInput.toString()); write(",")
                 write(heartTemplateEnhanced.toString()); write(",")
                 write(heartTemplateQuality?.toString() ?: ""); write(",")
@@ -140,6 +179,9 @@ class SensorDataLogger(private val context: Context) {
                 write(heartMorphologyQuality?.toString() ?: ""); write(",")
                 write(heartMorphologyDelayMs.toString()); write(",")
                 write(if (heartMorphologyBoundary) "1" else "0"); write(",")
+                write(heartMorphologyReferenceBpm?.toString() ?: ""); write(",")
+                write(heartMorphologyReferenceSource); write(",")
+                write(heartMorphologyReferenceAgeMs?.toString() ?: ""); write(",")
                 write(normHr.toString()); write(",")
                 write(if (windowedPeak) "1" else "0"); write(",")
                 write(windowedBpm?.toString() ?: ""); write(",")
@@ -152,6 +194,17 @@ class SensorDataLogger(private val context: Context) {
                 write(if (thresholdPeak) "1" else "0"); write(",")
                 write(dualPeakBpm?.toString() ?: ""); write(",")
                 write(bpm?.toString() ?: ""); write(",")
+                write(heartRateSource ?: ""); write(",")
+                write(if (heartRateStale) "1" else "0"); write(",")
+                write(heartRatePrimaryCandidate?.toString() ?: ""); write(",")
+                write(heartRateAlternateCandidate?.toString() ?: ""); write(",")
+                write(heartRateAmbiguityReason ?: ""); write(",")
+                write(heartRateConfidence?.toString() ?: ""); write(",")
+                write(vmdTrackingState ?: ""); write(",")
+                write(vmdComputeTimeMs?.toString() ?: ""); write(",")
+                write(signalQuality ?: ""); write(",")
+                write(slowContactRawRange?.toString() ?: ""); write(",")
+                write(slowContactRmsRatio?.toString() ?: ""); write(",")
                 write(rpm?.toString() ?: ""); write(",")
                 write(rpmZc?.toString() ?: ""); write(",")
                 write(if (respCycle) "1" else "0"); write(",")

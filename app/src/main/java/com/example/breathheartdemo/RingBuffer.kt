@@ -49,6 +49,21 @@ class RingBuffer(private val capacity: Int) {
         return outT to outV
     }
 
+    /** Copy at most [sampleCount] newest samples in chronological order. */
+    @Synchronized
+    fun snapshotLatest(sampleCount: Int): Pair<LongArray, FloatArray> {
+        val count = sampleCount.coerceIn(0, size)
+        val first = size - count
+        val outT = LongArray(count)
+        val outV = FloatArray(count)
+        for (offset in 0 until count) {
+            val source = logicalToPhysical(first + offset)
+            outT[offset] = t[source]
+            outV[offset] = v[source]
+        }
+        return outT to outV
+    }
+
     /** Return min/max for a recent window without allocating waveform arrays. */
     @Synchronized
     fun valueRange(windowMs: Long): ValueRange? {

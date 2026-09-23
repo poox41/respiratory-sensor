@@ -58,8 +58,8 @@ class SleepStateService(
     }
 
     fun inputProgress(processor: Processor): SleepModelInputProgress = inputAdapter.progress(
-        heartBuffer = processor.cleanHeartBuf,
-        respirationBuffer = processor.respBuf
+        heartBuffer = processor.sleepHeartBuf,
+        respirationBuffer = processor.sleepRespBuf
     )
 
     suspend fun checkModel(): SleepModelHealth = withContext(Dispatchers.Default) {
@@ -92,8 +92,8 @@ class SleepStateService(
             )
         }
         val modelInput = when (val prepared = inputAdapter.prepare(
-            heartBuffer = processor.cleanHeartBuf,
-            respirationBuffer = processor.respBuf
+            heartBuffer = processor.sleepHeartBuf,
+            respirationBuffer = processor.sleepRespBuf
         )) {
             is SleepModelInputResult.Ready -> prepared.window
             is SleepModelInputResult.Invalid -> {

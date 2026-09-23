@@ -7,9 +7,9 @@ import kotlin.math.sqrt
 /**
  * Output of beat-synchronous template enhancement.
  *
- * [value] is a normalized, reconstructed display signal.  It is intentionally
- * kept separate from cleanHeart and must not be used as a raw/extracted BCG
- * waveform or as the source of BPM calculations.
+ * [value] is a normalized, reconstructed display signal and is intentionally
+ * kept separate from cleanHeart. The replayed waveform never drives BPM;
+ * only [quality] may be used as supporting evidence for already detected beats.
  */
 data class HeartTemplateEnhancement(
     val value: Float = 0f,
@@ -39,7 +39,9 @@ class HeartbeatTemplateEnhancer(
      * Display-only morphology blend.  0 uses the robust median template;
      * 1 uses the retained real cycle most representative of its peers.
      */
-    private val representativeCycleBlend: Float = 0.75f,
+    private val representativeCycleBlend: Float = 0f,
+    /** Do not draw a publication-style trace from mutually inconsistent beats. */
+    private val minimumReadyQuality: Float = 0.75f,
     /** Display-only slew limit; at 50 Hz this permits at most 0.28 per sample. */
     private val maximumDisplaySlopePerSecond: Float = 14f
 ) {
@@ -85,7 +87,8 @@ class HeartbeatTemplateEnhancer(
             latestPeakTimeMs = detectedPeakTimeMs
         }
 
-        val ready = cycles.size >= 3 && template != null
+        val ready = cycles.size >= 5 && template != null &&
+            (templateQuality ?: 0f) >= minimumReadyQuality
         val enhancedValue = if (ready) {
             continuousDisplayValue(currentTemplateValue(timeMs))
         } else {

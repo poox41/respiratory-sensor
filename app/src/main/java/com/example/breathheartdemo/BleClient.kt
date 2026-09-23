@@ -16,14 +16,16 @@ import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
 import android.os.ParcelUuid
+import android.os.SystemClock
 import android.util.Log
 import android.annotation.SuppressLint
 import androidx.annotation.RequiresPermission
 import androidx.core.content.ContextCompat
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.receiveAsFlow
 import java.io.File
 import java.util.UUID
 
@@ -43,7 +45,7 @@ sealed class ConnectionState {
 
 class BleClient(
     private val context: Context,
-    private val sampleRateHz: Int
+    private val acquisitionConfig: SensorAcquisitionConfig
 ) {
     private val logTag = "BleClient"
     private val bluetoothManager =
@@ -75,8 +77,12 @@ class BleClient(
     private val _rawBytes = MutableStateFlow(0L)
     val rawBytes: StateFlow<Long> = _rawBytes
 
-    private val _samples = MutableSharedFlow<Sample>(extraBufferCapacity = 256)
-    val samples: SharedFlow<Sample> = _samples
+    // There is exactly one Processor consumer. A channel is a better fit than
+    // SharedFlow here: SharedFlow.tryEmit() discarded samples whenever a short
+    // processing stall filled its 256-element buffer. Keep roughly 80 seconds
+    // of 50 Hz input so UI/VMD scheduling hiccups do not turn into data loss.
+    private val sampleQueue = Channel<Sample>(capacity = 4096)
+    val samples: Flow<Sample> = sampleQueue.receiveAsFlow()
 
     private val _connectionError = MutableStateFlow<String?>(null)
     val connectionError: StateFlow<String?> = _connectionError
@@ -85,8 +91,22 @@ class BleClient(
     val lastRxMs: StateFlow<Long?> = _lastRxMs
 
     private var pendingByte: Int? = null
-    private var lastSampleMs: Double? = null
-    private val samplePeriodMs = if (sampleRateHz > 0) 1000.0 / sampleRateHz else 10.0
+    // The device is configured as 50 Hz, but the audited BLE stream delivers
+    // two complete little-endian int16 readings per 20 ms processor interval
+    // (99.81 decoded values/s in input_timing_20260910_094939.csv). Preserve
+    // every wire value in samples_*.csv at 100 Hz, then average adjacent pairs
+    // into the 50 Hz Processor. This keeps real time and avoids feeding the
+    // physiology pipeline at twice its configured rate.
+    private val processorSampleRateHz = acquisitionConfig.processingSampleRateHz
+    private val decodedValuesPerProcessorSample =
+        acquisitionConfig.decodedValuesPerProcessorSample
+    private val decodedValueRateHz = acquisitionConfig.decodedValueRateHz
+    private val sampleClock = SensorSampleClock(decodedValueRateHz)
+    private val sampleDownsampler = SensorSampleDownsampler(decodedValuesPerProcessorSample)
+    private val receiveRateMonitor = BleReceiveRateMonitor(decodedValueRateHz)
+    private var processorSamplesProduced = 0L
+    private var failedSampleEmissions = 0L
+    private var lastReceiveRateStatus = "WAITING"
     private val dataExporter = DataExporter(context)
     private var exportSessionDir: File? = null
 
@@ -212,7 +232,10 @@ class BleClient(
                 rssi = 0,
                 device = gatt.device
             )
-            exportSessionDir = dataExporter.startSession(device)
+            exportSessionDir = dataExporter.startSession(
+                device = device,
+                acquisitionConfig = acquisitionConfig
+            )
             _exportSessionPath.value = exportSessionDir?.absolutePath
             _exportFileName.value = dataExporter.currentFileName()
             _connectionState.value = ConnectionState.Connected(device)
@@ -222,7 +245,7 @@ class BleClient(
             gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic
         ) {
-            handleIncoming(characteristic.value)
+            handleIncoming(characteristic.value, "legacy")
         }
 
         override fun onCharacteristicChanged(
@@ -230,7 +253,7 @@ class BleClient(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
-            handleIncoming(value)
+            handleIncoming(value, "value")
         }
     }
 
@@ -306,8 +329,7 @@ class BleClient(
         gatt?.close()
         gatt = null
         currentDevice = null
-        pendingByte = null
-        lastSampleMs = null
+        resetSampleClock()
     }
 
     @RequiresPermission(
@@ -339,10 +361,11 @@ class BleClient(
             android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
-    private fun handleIncoming(bytes: ByteArray) {
+    private fun handleIncoming(bytes: ByteArray, callbackApi: String) {
         if (bytes.isEmpty()) return
         val receiveTimeMs = System.currentTimeMillis()
-        ensureSampleClock()
+        val receiveElapsedMs = SystemClock.elapsedRealtime()
+        sampleClock.beginPacket(receiveTimeMs)
         var idx = 0
         val firstPending = pendingByte
         val leValues = ArrayList<Int>(bytes.size / 2 + 1)
@@ -371,6 +394,29 @@ class BleClient(
             pendingByte = bytes[idx].toInt() and 0xFF
         }
         dataExporter.appendSamples(exportedSamples)
+        val timing = receiveRateMonitor.observe(receiveElapsedMs, exportedSamples.size)
+        dataExporter.appendInputTiming(
+            receiveTimeMs = receiveTimeMs,
+            receiveElapsedMs = receiveElapsedMs,
+            payloadBytes = bytes.size,
+            decodedValues = exportedSamples.size,
+            totalDecodedValues = timing.totalDecodedValues,
+            expectedDecodedValueRateHz = decodedValueRateHz,
+            observedValuesPerSecond = timing.observedValuesPerSecond,
+            sampleClockLeadMs = sampleClock.leadMs(receiveTimeMs),
+            rateStatus = timing.status,
+            processorSamplesProduced = processorSamplesProduced,
+            failedSampleEmissions = failedSampleEmissions,
+            callbackApi = callbackApi
+        )
+        if (timing.status != lastReceiveRateStatus) {
+            if (timing.status == "MISMATCH") {
+                Log.w(logTag, "Receive rate ${timing.observedValuesPerSecond} values/s differs " +
+                    "from expected $decodedValueRateHz decoded values/s for the " +
+                    "$processorSampleRateHz Hz processor; inspect input_timing export")
+            }
+            lastReceiveRateStatus = timing.status
+        }
         _exportFileName.value = dataExporter.currentFileName()
         val hasValidSamples = leValues.isNotEmpty()
         if (hasValidSamples) {
@@ -394,20 +440,14 @@ class BleClient(
         }
     }
 
-    private fun ensureSampleClock() {
-        val now = System.currentTimeMillis().toDouble()
-        val last = lastSampleMs
-        if (last == null || now - last > 2000.0) {
-            lastSampleMs = now
-        }
-    }
-
     private fun emitSample(receiveTimeMs: Long, lo: Int, hi: Int): ExportedSample {
         val raw = (hi shl 8) or lo
         val signed = raw.toShort().toInt()
-        val t = lastSampleMs?.toLong() ?: System.currentTimeMillis()
-        _samples.tryEmit(Sample(t, signed.toFloat()))
-        lastSampleMs = (lastSampleMs ?: t.toDouble()) + samplePeriodMs
+        val t = sampleClock.nextTimestampMs()
+        sampleDownsampler.next(signed.toFloat(), t)?.let { processorSample ->
+            processorSamplesProduced++
+            if (sampleQueue.trySend(processorSample).isFailure) failedSampleEmissions++
+        }
         return ExportedSample(
             receiveTimeMs = receiveTimeMs,
             sampleTimeMs = t,
@@ -418,8 +458,17 @@ class BleClient(
     }
 
     private fun resetSampleClock() {
-        lastSampleMs = null
+        while (sampleQueue.tryReceive().isSuccess) {
+            // Do not let samples buffered before a disconnect/source reset be
+            // consumed as part of the next acquisition session.
+        }
         pendingByte = null
+        sampleClock.clear()
+        sampleDownsampler.clear()
+        receiveRateMonitor.clear()
+        processorSamplesProduced = 0L
+        failedSampleEmissions = 0L
+        lastReceiveRateStatus = "WAITING"
     }
 
     private fun buildPreview(buf: ByteArray, len: Int): String {

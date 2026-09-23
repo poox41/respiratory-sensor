@@ -24,7 +24,8 @@ data class SleepModelInputProgress(
     val continuous: Boolean,
     val imputedSamples: Int = 0,
     val maxGapMs: Long = 0L,
-    val qualityAcceptable: Boolean = true
+    val qualityAcceptable: Boolean = true,
+    val qualityIssue: String? = null
 ) {
     val collectedSeconds: Float
         get() = collectedSamples / fsHz.toFloat()
@@ -71,10 +72,12 @@ class SleepModelInputAdapter(
         val timestampMs = progress.timestampMs
 
         if (!progress.ready) {
-            if (progress.collectedSamples >= requiredSamples && !progress.qualityAcceptable) {
+            if (!progress.qualityAcceptable) {
                 return invalidQuality(
-                    "motion gap exceeds tolerance: max ${progress.maxGapMs}ms, " +
-                        "imputed ${"%.1f".format(progress.imputedSamples * 100f / requiredSamples)}%",
+                    progress.qualityIssue ?: (
+                        "motion gap exceeds tolerance: max ${progress.maxGapMs}ms, " +
+                            "imputed ${"%.1f".format(progress.imputedSamples * 100f / requiredSamples)}%"
+                        ),
                     timestampMs
                 )
             }
@@ -146,6 +149,17 @@ class SleepModelInputAdapter(
                 qualityAcceptable = true
             )
         }
+        if (!isStrictlyIncreasing(heartTimes) || !isStrictlyIncreasing(respTimes)) {
+            return SleepModelInputProgress(
+                collectedSamples = 0,
+                requiredSamples = requiredSamples,
+                fsHz = fsHz,
+                timestampMs = minOf(heartTimes.last(), respTimes.last()),
+                continuous = false,
+                qualityAcceptable = false,
+                qualityIssue = "signal timestamps are duplicated or out of order"
+            )
+        }
 
         val timestampMs = minOf(
             heartTimes.last(),
@@ -179,8 +193,19 @@ class SleepModelInputAdapter(
             continuous = metrics.imputedSamples == 0,
             imputedSamples = metrics.imputedSamples,
             maxGapMs = metrics.maxGapMs,
-            qualityAcceptable = qualityAcceptable
+            qualityAcceptable = qualityAcceptable,
+            qualityIssue = if (qualityAcceptable) null else {
+                "motion gap exceeds tolerance: max ${metrics.maxGapMs}ms, " +
+                    "imputed ${"%.1f".format(imputedFraction * 100f)}%"
+            }
         )
+    }
+
+    private fun isStrictlyIncreasing(times: LongArray): Boolean {
+        for (index in 1 until times.size) {
+            if (times[index] <= times[index - 1]) return false
+        }
+        return true
     }
 
     private fun reconstruct(
@@ -229,7 +254,11 @@ class SleepModelInputAdapter(
             val clippedStart = maxOf(previous, startMs)
             val clippedEnd = minOf(current, endMs)
             val gapMs = clippedEnd - clippedStart
-            if (gapMs > expectedStepMs * 2L) {
+            // Any interval larger than one nominal sampling step contains
+            // at least one missing target sample.  Using two steps here would
+            // silently ignore repeated single-sample (40 ms at 50 Hz) gaps
+            // and make progress.ready disagree with prepare().
+            if (gapMs > expectedStepMs) {
                 maxGapMs = maxOf(maxGapMs, current - previous)
                 missing += ((gapMs / expectedStepMs) - 1L).coerceAtLeast(0L).toInt()
             }
